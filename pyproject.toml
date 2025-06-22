@@ -1,0 +1,31 @@
+[project]
+name = "multi-source-rag-platform"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "Hagay Bar",email = "hagay.bar@gmail.com"}
+]
+readme = "README.md"
+requires-python = ">=3.11,<3.14"
+dependencies = [
+    "pyyaml (>=6.0.2,<7.0.0)",
+    "pdfplumber (>=0.11.7,<0.12.0)",
+    "python-docx (>=1.2.0,<2.0.0)",
+    "python-pptx (>=1.0.2,<2.0.0)",
+    "typer (>=0.16.0,<0.17.0)",
+    "openpyxl (>=3.1.5,<4.0.0)",
+    "spacy (>=3.8.7,<4.0.0)",
+    "faiss-cpu (>=1.11.0,<2.0.0)",
+    "sentence-transformers (>=4.1.0,<5.0.0)"
+    ]
+   
+
+[tool.poetry]
+package-mode = false
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.4.1"
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
