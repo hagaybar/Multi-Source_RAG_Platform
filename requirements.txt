@@ -1,4 +1,0 @@
-python-pptx
-python-docx
-pdfplumber
-PyYAML
