@@ -6,7 +6,6 @@ from typing import List, Dict
 
 import numpy as np
 import faiss
-import time
 
 from scripts.chunking.models import Chunk
 from scripts.core.project_manager import ProjectManager
@@ -23,11 +22,6 @@ class ChunkEmbedder:
         self.dim = self.embedder.encode(["embedding-dim-probe"])[0].shape[0]
 
         self.skip_duplicates = self.project.config.get("embedding.skip_duplicates", True)
-        self.embedding_mode = self.project.config.get("embedding.mode", "batch")
-        if self.embedding_mode not in ("batch", "single"):
-            raise ValueError("embedding.mode must be 'batch' or 'single'")
-
-        self.logger.info(f"Embedding mode: {self.embedding_mode}")
         self.logger.info(f"Duplicate skipping is {'enabled' if self.skip_duplicates else 'disabled'}")
 
         self.chunks_path = self.project.get_chunks_path()
@@ -72,39 +66,29 @@ class ChunkEmbedder:
         else:
             index = faiss.IndexFlatL2(self.dim)
 
-        filtered_chunks = []
+        new_embeddings = []
+        new_metadata = []
+
         for chunk in chunks:
             chunk_id = self._hash_text(chunk.text)
             if self.skip_duplicates and chunk_id in existing_ids:
                 self.logger.debug(f"Skipping duplicate chunk {chunk_id[:8]}...")
                 continue
+            emb = self.embedder.encode([chunk.text])[0]
+            new_embeddings.append(emb)
             chunk.meta["id"] = chunk_id
-            filtered_chunks.append(chunk)
+            new_metadata.append(chunk.meta)
 
-        if not filtered_chunks:
+        if new_embeddings:
+            emb_array = np.vstack(new_embeddings).astype("float32")
+            index.add(emb_array)
+            faiss.write_index(index, str(index_path))
+            with open(meta_path, "a", encoding="utf-8") as f:
+                for meta in new_metadata:
+                    f.write(json.dumps(meta) + "\n")
+            self.logger.info(f"Appended {len(new_embeddings)} new vectors to {index_path.name}")
+        else:
             self.logger.info("No new chunks to embed.")
-            return
-
-        texts = [chunk.text for chunk in filtered_chunks]
-        start_time = time.time()
-
-        if self.embedding_mode == "batch":
-            embeddings = self.embedder.encode(texts)
-        elif self.embedding_mode == "single":
-            embeddings = [self.embedder.encode([t])[0] for t in texts]
-
-        duration = time.time() - start_time
-        self.logger.info(f"Embedded {len(texts)} chunks in {duration:.2f} seconds")
-
-        emb_array = np.vstack(embeddings).astype("float32")
-        index.add(emb_array)
-
-        with open(meta_path, "a", encoding="utf-8") as f:
-            for chunk in filtered_chunks:
-                f.write(json.dumps(chunk.meta) + "\n")
-
-        faiss.write_index(index, str(index_path))
-        self.logger.info(f"Appended {len(filtered_chunks)} new vectors to {index_path.name}")
 
     def _hash_text(self, text: str) -> str:
         return hashlib.sha256(text.strip().encode("utf-8")).hexdigest()
