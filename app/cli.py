@@ -7,7 +7,7 @@ from collections import defaultdict
 from scripts.ingestion.manager import IngestionManager
 from scripts.chunking.chunker_v3 import split as chunker_split
 from scripts.chunking.models import Chunk
-from scripts.embeddings.ChunkEmbedder import ChunkEmbedder
+from scripts.embeddings.chunk_embedder import ChunkEmbedder
 from scripts.utils.logger import LoggerManager
 from scripts.core.project_manager import ProjectManager
 
