@@ -135,7 +135,8 @@ def ingest(
 
 @app.command()
 def embed(
-    project_dir: pathlib.Path = typer.Argument(..., help="Path to the project directory")
+    project_dir: pathlib.Path = typer.Argument(..., help="Path to the project directory"),
+    use_async_batch: bool = typer.Option(False, "--async", help="Use OpenAI's async batch endpoint")
 ):
     """
     Embeds chunks.tsv in the given project and saves FAISS index + metadata.
@@ -147,10 +148,14 @@ def embed(
         raise typer.Exit(code=1)
     
     project = ProjectManager(project_dir)
-    embedder = UnifiedEmbedder(project)
-    # embedder.run_from_file()
-    embedder.run_from_folder()
+    
+    # 🧠 Override config if CLI flag is set
+    if use_async_batch:
+        project.config["embedding"]["use_async_batch"] = True
+        logger.info("Embedding mode override: use_async_batch=True")
 
+    embedder = UnifiedEmbedder(project)
+    embedder.run_from_folder()
 
 if __name__ == "__main__":
     app()
