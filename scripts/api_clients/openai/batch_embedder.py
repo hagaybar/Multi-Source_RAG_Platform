@@ -5,6 +5,7 @@ import tempfile
 from pathlib import Path
 from typing import List, Dict, Optional
 from openai import OpenAI
+import logging
 
 from scripts.utils.logger import LoggerManager
 
@@ -14,10 +15,11 @@ class BatchEmbedder:
     Submits a large embedding job to OpenAI's asynchronous /v1/batches API.
     """
 
-    def __init__(self, model: str, output_dir: Path, api_key: Optional[str] = None):
+    def __init__(self, model: str, output_dir: Path, api_key: Optional[str] = None, logger=None):
         self.model = model
         self.output_dir = Path(output_dir)
-        self.logger = LoggerManager.get_logger("batch_embedder")
+        self.logger = logger or logging.getLogger(__name__)
+        # self.logger = LoggerManager.get_logger("batch_embedder")
         self.api_key = api_key or os.getenv("OPEN_AI")
 
         if not self.api_key:
@@ -42,6 +44,10 @@ class BatchEmbedder:
                 endpoint="/v1/embeddings",
                 parameters={"model": self.model}
             )
+            self.logger.info(f"[OPENAI SUBMIT] Submitted async batch job: {batch.id} | status: {batch.status}")
+            self.logger.info(f"[OPENAI SUBMIT] Input file: {input_path.name} | Size: {len(texts)} chunks")
+
+
 
         self.logger.info(f"Submitted OpenAI batch job: {batch.id}")
         batch = self._wait_for_completion(batch.id)
@@ -56,7 +62,7 @@ class BatchEmbedder:
         temp_path = self.output_dir / f"batch_input_{int(time.time())}.jsonl"
         with open(temp_path, "w", encoding="utf-8") as f:
             for i, text in enumerate(texts):
-                f.write(json.dumps({"input": text, "custom_id": ids[i]}) + "\\n")
+                f.write(json.dumps({"input": text, "custom_id": ids[i]}) + "\n")
         self.logger.info(f"Wrote input JSONL file to {temp_path}")
         return temp_path
 
@@ -73,13 +79,22 @@ class BatchEmbedder:
     def _download_result_file(self, file_id: str, output_path: Path) -> None:
         with open(output_path, "wb") as f:
             self.client.files.download(file_id=file_id, write_to=f)
-        self.logger.info(f"Downloaded batch result to {output_path}")
+        self.logger.info(f"[OPENAI DOWNLOAD] Downloaded output to: {output_path}")
 
     def _load_output_file(self, path: Path) -> Dict[str, List[float]]:
+        result = {}
         with open(path, "r", encoding="utf-8") as f:
-            result = {}
-            for line in f:
-                row = json.loads(line)
-                result[row["custom_id"]] = row["embedding"]
-        self.logger.info(f"Loaded {len(result)} embeddings from output.")
+            for i, line in enumerate(f):
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    row = json.loads(line)
+                    result[row["custom_id"]] = row["embedding"]
+                except json.JSONDecodeError as e:
+                    self.logger.error(f"[ERROR] Failed to parse line {i} in {path.name}")
+                    self.logger.error(f"[ERROR] Raw line: {line[:200]}...")
+                    raise e
+
+        self.logger.info(f"[OPENAI LOAD] Loaded {len(result)} embeddings from result file")
         return result
