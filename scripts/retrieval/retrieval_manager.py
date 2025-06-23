@@ -1,6 +1,5 @@
 from pathlib import Path
 
-retrieval_manager_code = """
 from typing import List, Dict, Optional
 from scripts.chunking.models import Chunk
 from scripts.core.project_manager import ProjectManager
@@ -9,23 +8,23 @@ from scripts.retrieval.strategies import STRATEGY_REGISTRY
 from scripts.retrieval.utils import dedupe_chunks
 
 class RetrievalManager:
-    \"\"\"
+    """
     Central manager for querying over multiple retrievers and applying retrieval strategies.
 
     Usage:
         rm = RetrievalManager(project)
         results = rm.retrieve("alma analytics", top_k=10, strategy="late_fusion")
-    \"\"\"
+    """
 
     def __init__(self, project: ProjectManager):
         self.project = project
         self.retrievers: Dict[str, BaseRetriever] = self._load_retrievers()
 
     def _load_retrievers(self) -> Dict[str, BaseRetriever]:
-        \"\"\"
+        """
         Loads a FAISS-based retriever for each document type that has an index.
         In the future, this could dynamically load BM25 or hybrid retrievers too.
-        \"\"\"
+        """
         retrievers = {}
 
         # TODO: Read doc types from config or available FAISS files
@@ -49,7 +48,7 @@ class RetrievalManager:
         strategy: str = "late_fusion",
         filters: Optional[Dict] = None
     ) -> List[Chunk]:
-        \"\"\"
+        """
         Main entry point to run a retrieval strategy.
 
         Args:
@@ -60,7 +59,7 @@ class RetrievalManager:
 
         Returns:
             List[Chunk]: Top-matching chunks with metadata and similarity scores.
-        \"\"\"
+        """
         if strategy not in STRATEGY_REGISTRY:
             raise ValueError(f"Unknown strategy: {strategy}")
 
@@ -75,8 +74,3 @@ class RetrievalManager:
 
         # Optional post-filtering (deduplication, score threshold, etc.)
         return dedupe_chunks(results)
-"""
-
-retrieval_path = Path("/mnt/data/retrieval_manager.py")
-retrieval_path.write_text(retrieval_manager_code.strip(), encoding="utf-8")
-retrieval_path
