@@ -8,7 +8,9 @@ class ProjectManager:
     def __init__(self, root_dir: str | Path):
         self.root_dir = Path(root_dir).resolve()
         self.config_path = self.root_dir / "config.yml"
-        self.config = ConfigLoader(self.config_path)
+        
+        raw_config = ConfigLoader(self.config_path)
+        self.config = raw_config.as_dict()  
 
         self.input_dir = self.root_dir / self.config.get("paths.input_dir", "input")
         self.output_dir = self.root_dir / self.config.get("paths.output_dir", "output")
