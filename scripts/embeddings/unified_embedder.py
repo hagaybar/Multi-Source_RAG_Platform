@@ -39,6 +39,7 @@ class UnifiedEmbedder:
         self.skip_duplicates = self.config.get("embedding.skip_duplicates", True)
         self.batch_size = self.config.get("embedding.embed_batch_size", 100)
         self.use_async_batch = self.config.get("embedding.use_async_batch", False)
+
         self.chunks_path = self.project.get_chunks_path()
 
         self.logger.info(f"Embedder initialized with mode: {self.mode} | batch_size: {self.batch_size}")
@@ -81,8 +82,12 @@ class UnifiedEmbedder:
             if meta_path.exists():
                 with open(meta_path, "r", encoding="utf-8") as f:
                     for line in f:
-                        meta = json.loads(line)
-                        existing_ids.add(meta["id"])
+                        try:
+                            meta = json.loads(line)
+                            existing_ids.add(meta["id"])
+                        except json.JSONDecodeError as e:
+                            self.logger.warning(f"Skipping malformed JSON line: {line[:100]}...")
+                            continue
         else:
             index = faiss.IndexFlatL2(self.dim)
 
@@ -121,9 +126,15 @@ class UnifiedEmbedder:
 
         with open(meta_path, "a", encoding="utf-8") as f:
             for chunk in new_chunks:
-                f.write(json.dumps(chunk.meta) + "\\n")
+                f.write(json.dumps(chunk.meta) + "\n")
 
     def run_async_batch(self, doc_type: str, chunks: List[Chunk]) -> None:
+        """
+        Submit batch job to OpenAI and wait for completion automatically.
+        Uses BatchEmbedder to handle the entire async process.
+        """
+        self.logger.info(f"Running async batch for doc_type={doc_type}, chunks={len(chunks)}")
+
         # Only supports OpenAI for now
         try:
             from openai import OpenAI
@@ -133,18 +144,56 @@ class UnifiedEmbedder:
         meta_path = self.project.get_metadata_path(doc_type)
         faiss_path = self.project.get_faiss_path(doc_type)
 
-        chunk_texts = [c.text for c in chunks]
-        ids = [f"{doc_type}-chunk-{i}" for i in range(len(chunk_texts))]
-        df = pd.DataFrame({ "text": chunk_texts, "custom_id": ids })
+        # Filter duplicates
+        existing_ids = self._get_existing_ids(doc_type)
+        new_chunks = []
+        
+        for chunk in chunks:
+            chunk_id = self._hash(chunk.text)
+            if self.skip_duplicates and chunk_id in existing_ids:
+                continue
+            chunk.meta["id"] = chunk_id
+            new_chunks.append(chunk)
 
-        self.logger.info(f"Submitting async batch job to OpenAI: {len(df)} chunks")
+        if not new_chunks:
+            self.logger.info("No new chunks to embed.")
+            return
 
-        batch_embedder = BatchEmbedder(model="text-embedding-3-large", output_dir=self.project.output_dir)
-        result_dict = batch_embedder.run(df["text"].tolist(), ids=ids)
+        chunk_texts = [c.text for c in new_chunks]
+        # Use chunk IDs as custom_ids for better tracking
+        custom_ids = [chunk.meta["id"] for chunk in new_chunks]
 
-        vectors = [result_dict[cid] for cid in df["custom_id"] if cid in result_dict]
+        self.logger.info(f"Submitting async batch job to OpenAI: {len(chunk_texts)} chunks")
+
+        # BatchEmbedder handles everything: JSONL creation, submission, waiting, download
+        batch_embedder = BatchEmbedder(
+            model="text-embedding-3-large", 
+            output_dir=self.project.output_dir, 
+            logger=self.logger
+        )
+        
+        # This will automatically create JSONL, submit to OpenAI, wait for completion, and return results
+        result_dict = batch_embedder.run(chunk_texts, ids=custom_ids)
+
+        # Extract vectors in the same order as chunks
+        vectors = []
+        successful_chunks = []
+        
+        for chunk in new_chunks:
+            chunk_id = chunk.meta["id"]
+            if chunk_id in result_dict:
+                vectors.append(result_dict[chunk_id])
+                successful_chunks.append(chunk)
+            else:
+                self.logger.warning(f"No embedding returned for chunk ID: {chunk_id}")
+
+        if not vectors:
+            self.logger.error("No embeddings were successfully processed!")
+            return
+
+        # Convert to numpy array and add to FAISS
         vec_array = np.array(vectors, dtype="float32")
-
+        
         if faiss_path.exists():
             index = faiss.read_index(str(faiss_path))
         else:
@@ -153,8 +202,29 @@ class UnifiedEmbedder:
         index.add(vec_array)
         faiss.write_index(index, str(faiss_path))
 
-        df.drop(columns=["custom_id"]).to_csv(meta_path, sep="\\t", mode="a", header=not os.path.exists(meta_path), index=False)
-        self.logger.info(f"Async batch embedding complete. Stored {len(vectors)} vectors.")
+        # Store metadata in proper JSONL format
+        with open(meta_path, "a", encoding="utf-8") as f:
+            for chunk in successful_chunks:
+                f.write(json.dumps(chunk.meta) + "\n")
+
+        self.logger.info(f"Async batch embedding complete. Stored {len(vectors)} vectors and metadata.")
+
+    def _get_existing_ids(self, doc_type: str) -> set:
+        """Get existing chunk IDs to avoid duplicates."""
+        existing_ids = set()
+        meta_path = self.project.get_metadata_path(doc_type)
+        
+        if meta_path.exists():
+            with open(meta_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    try:
+                        meta = json.loads(line)
+                        existing_ids.add(meta["id"])
+                    except json.JSONDecodeError as e:
+                        self.logger.warning(f"Skipping malformed JSON line: {line[:100]}...")
+                        continue
+        
+        return existing_ids
 
     def _hash(self, text: str) -> str:
         return hashlib.sha256(text.strip().encode("utf-8")).hexdigest()
