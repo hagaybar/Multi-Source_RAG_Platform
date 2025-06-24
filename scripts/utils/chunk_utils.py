@@ -1,5 +1,7 @@
 from typing import List
 import hashlib
+import csv
+import json
 from scripts.chunking.models import Chunk
 
 
@@ -24,3 +26,18 @@ def deduplicate_chunks(chunks: List[Chunk], existing_hashes: set[str], skip_dupl
         new_chunks.append(chunk)
 
     return new_chunks
+
+def load_chunks(chunks_path) -> List[Chunk]:
+    chunks: List[Chunk] = []
+    with open(chunks_path, "r", encoding="utf-8") as f:
+        reader = csv.DictReader(f, delimiter="\t")
+        for row in reader:
+            chunk = Chunk(
+                id=row["chunk_id"],
+                doc_id=row["doc_id"],
+                text=row["text"],
+                token_count=int(row["token_count"]),
+                meta=json.loads(row["meta_json"])
+            )
+            chunks.append(chunk)
+    return chunks

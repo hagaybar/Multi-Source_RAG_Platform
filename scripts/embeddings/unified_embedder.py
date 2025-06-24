@@ -21,9 +21,10 @@ from scripts.api_clients.openai.batch_embedder import BatchEmbedder
 from scripts.core.project_manager import ProjectManager
 from scripts.chunking.models import Chunk
 from scripts.utils.logger import LoggerManager
-from scripts.utils.chunks_io import load_chunks
 from scripts.embeddings.embedder_registry import get_embedder
+from scripts.utils.chunk_utils import load_chunks
 from scripts.utils.chunk_utils import deduplicate_chunks
+
 
 
 

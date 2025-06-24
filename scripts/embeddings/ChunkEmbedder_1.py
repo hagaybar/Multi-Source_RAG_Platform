@@ -12,7 +12,7 @@ from sentence_transformers import SentenceTransformer
 from scripts.chunking.models import Chunk
 from scripts.core.project_manager import ProjectManager
 from scripts.utils.logger import LoggerManager
-from scripts.utils.chunks_io import load_chunks
+from scripts.utils.chunk_utils import load_chunks
 
 class ChunkEmbedder:
     # def __init__(self, project: ProjectManager, model_name: str = "BAAI/bge-large-en"):
