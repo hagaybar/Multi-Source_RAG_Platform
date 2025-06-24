@@ -97,10 +97,10 @@ $RECYCLE.BIN/
 ###############################################################################
 #  Project-specific ignores                                                   #
 ###############################################################################
-# Local data and generated artefacts
+# Local data and generated artefacts; not part of the source code
 data/
 outputs/
-
+archived/
 # FAISS / index binaries that may appear elsewhere
 *.faiss
 *.index
