@@ -1,13 +1,18 @@
 import pathlib
+from shutil import copy
+import copy as copy_module
+
 import typer  # type: ignore
 import json  # Added import
 import csv  # Added import
 from collections import defaultdict
+from pathlib import Path
 
 from scripts.ingestion.manager import IngestionManager
 from scripts.chunking.chunker_v3 import split as chunker_split
 from scripts.chunking.models import Chunk
-from scripts.embeddings.ChunkEmbedder import ChunkEmbedder
+# from scripts.embeddings.chunk_embedder import ChunkEmbedder
+from scripts.embeddings.unified_embedder import UnifiedEmbedder
 from scripts.utils.logger import LoggerManager
 from scripts.core.project_manager import ProjectManager
 
@@ -134,21 +139,107 @@ def ingest(
 
 @app.command()
 def embed(
-    project_dir: pathlib.Path = typer.Argument(..., help="Path to the project directory")
-):
+    project_dir: Path,
+    use_async: bool = typer.Option(False, "--a-b", "--async-batch", help="Use OpenAI async batch embedding")
+) -> None:
     """
-    Embeds chunks.tsv in the given project and saves FAISS index + metadata.
+    Generate embeddings for chunks in the specified project directory.
     """
-    logger = LoggerManager.get_logger("embedder")
-
-    if not project_dir.is_dir():
-        logger.error(f"Provided project_dir does not exist: {project_dir}")
-        raise typer.Exit(code=1)
+    print("\n" + "=" * 120)
+    print("DEBUG: CLI embed() command STARTING")
+    print("=" * 120)
     
+    print(f"DEBUG: CLI Arguments received:")
+    print(f"DEBUG:   - project_dir: {project_dir}")
+    print(f"DEBUG:   - use_async: {use_async}")
+    print(f"DEBUG:   - use_async type: {type(use_async)}")
+    
+    if not project_dir.exists():
+        error_msg = f"Project directory does not exist: {project_dir}"
+        print(f"ERROR: {error_msg}")
+        typer.echo(f"Error: {error_msg}")
+        raise typer.Exit(1)
+    
+    logger = LoggerManager.get_logger("cli")
+    
+    # Initialize project manager
+    print("DEBUG: Creating ProjectManager...")
     project = ProjectManager(project_dir)
-    embedder = ChunkEmbedder(project)
-    # embedder.run_from_file()
+    print(f"DEBUG: ProjectManager created for: {project_dir}")
+    runtime_config = copy_module.deepcopy(project.config)
+    print(f"DEBUG: Project config loaded: {runtime_config}")
+
+    # Override config if async flag is provided
+    if use_async:
+        print("DEBUG: CLI use_async is TRUE - Overriding config")
+        logger.info("Embedding mode override: use_async_batch=True")
+        
+        # Set the runtime config directly (config is a plain dict)
+        if 'embedding' not in runtime_config:
+            runtime_config['embedding'] = {}
+        
+        runtime_config['embedding']['use_async_batch'] = True
+        print("DEBUG: Set runtime_config['embedding']['use_async_batch'] = True")
+        print(f"DEBUG: Updated runtime config: {runtime_config}")
+        print(f"DEBUG: Original project.config unchanged: {project.config}")
+        
+        # Verify the setting in runtime_config (since config is a plain dict)
+        if 'embedding' in runtime_config and 'use_async_batch' in runtime_config['embedding']:
+            async_batch_value = runtime_config['embedding']['use_async_batch']
+            print(f"DEBUG: Verification - runtime_config['embedding']['use_async_batch'] = {async_batch_value}")
+        else:
+            print("DEBUG: use_async_batch not found in runtime_config")
+        
+    else:
+        print("DEBUG: CLI use_async is FALSE - Using default config")
+        logger.info("Embedding mode: using default configuration")
+    
+    print("DEBUG: About to create UnifiedEmbedder...")
+    embedder = UnifiedEmbedder(project, runtime_config=runtime_config)
+    
+    print(f"DEBUG: UnifiedEmbedder created:")
+    print(f"DEBUG:   - embedder.use_async_batch: {embedder.use_async_batch}")
+    print(f"DEBUG:   - Expected: {use_async}")
+    
+    if use_async and not embedder.use_async_batch:
+        print("ERROR: CLI flag --async was True but embedder.use_async_batch is False!")
+        print("ERROR: Configuration override failed!")
+    elif use_async and embedder.use_async_batch:
+        print("SUCCESS: CLI flag --async correctly set embedder.use_async_batch = True")
+
+
+
+    logger.info(f"CLI: Created embedder with use_async_batch={embedder.use_async_batch}")
+    
+    print("DEBUG: About to call embedder.run_from_folder()...")
     embedder.run_from_folder()
+    
+    print("=" * 120)
+    print("DEBUG: CLI embed() command COMPLETE")
+    print("=" * 120)
+
+
+@app.command()
+def config(project_dir: Path) -> None:
+    """Print config values from project directory."""
+    
+    print(f"Reading config from: {project_dir}")
+    
+    # Create ProjectManager
+    project = ProjectManager(project_dir)
+    
+    # Print basic info
+    print(f"Config type: {type(project.config)}")
+    print(f"Config value: {project.config}")
+    
+    # If it's a dict, show the embedding section
+    if isinstance(project.config, dict):
+        embedding = project.config.get('embedding', {})
+        print(f"Embedding section: {embedding}")
+        
+        if isinstance(embedding, dict):
+            use_async_batch = embedding.get('use_async_batch', 'NOT_FOUND')
+            print(f"use_async_batch: {use_async_batch} (type: {type(use_async_batch)})")
 
 
 if __name__ == "__main__":

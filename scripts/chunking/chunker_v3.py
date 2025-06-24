@@ -9,6 +9,7 @@ For this initial step we:
 """
 
 import re
+import uuid
 from typing import Any, Dict, List, Optional
 from scripts.chunking.models import Chunk
 from scripts.chunking.rules_v3 import ChunkRule
@@ -33,6 +34,18 @@ def _token_count(text: str) -> int:
     """Very rough token counter; will be replaced by real tokenizer later."""
     return len(text.split())
 
+def build_chunk(text: str, meta: dict, token_count: int, doc_id: str) -> Chunk:
+    chunk_id = uuid.uuid4().hex
+    meta_copy = meta.copy()
+    meta_copy["id"] = chunk_id
+    return Chunk(
+        doc_id=doc_id,
+        text=text,
+        meta=meta_copy,
+        token_count=token_count,
+        id=chunk_id
+    )
+
 def merge_chunks_with_overlap(paragraphs: list[str], meta: dict, rule: ChunkRule, logger=None) -> list[Chunk]:
     if logger is None:
         logger = _default_logger
@@ -55,12 +68,7 @@ def merge_chunks_with_overlap(paragraphs: list[str], meta: dict, rule: ChunkRule
             chunk_tokens = " ".join(prev_tail_tokens + buffer).split()
             chunk_text = " ".join(chunk_tokens)
             if len(chunk_tokens) >= rule.min_tokens:
-                chunks.append(Chunk(
-                    doc_id=doc_id,
-                    text=chunk_text,
-                    meta=meta.copy(),
-                    token_count=len(chunk_tokens)
-                ))
+                chunks.append(build_chunk(chunk_text, meta, len(chunk_tokens), doc_id))
                 # logger.debug(f"[MERGE] Created chunk with {len(chunk_tokens)} tokens")
             else:
                 logger.debug(f"[MERGE] Skipped chunk with only {len(chunk_tokens)} tokens (< min_tokens)")
@@ -79,12 +87,8 @@ def merge_chunks_with_overlap(paragraphs: list[str], meta: dict, rule: ChunkRule
         chunk_tokens = " ".join(prev_tail_tokens + buffer).split()
         if chunk_tokens:
             chunk_text = " ".join(chunk_tokens)
-            chunks.append(Chunk(
-                doc_id=doc_id,
-                text=chunk_text,
-                meta=meta.copy(),
-                token_count=len(chunk_tokens)
-            ))
+            chunks.append(build_chunk(chunk_text, meta, len(chunk_tokens), doc_id))
+
             # logger.debug(f"[FINAL] Created final chunk with {len(chunk_tokens)} tokens")
         else:
             pass
