@@ -183,11 +183,8 @@ class UnifiedEmbedder:
         else:
             index = faiss.IndexFlatL2(self.dim)
 
-        new_chunks = []
-        for chunk in chunks:
-            if self.skip_duplicates and chunk.id in existing_ids:
-                continue
-            new_chunks.append(chunk)
+        existing_hashes = self._get_existing_hashes(doc_type)
+        new_chunks = deduplicate_chunks(chunks, existing_hashes, self.skip_duplicates, self.logger)
 
         if not new_chunks:
             self.logger.info("No new chunks to embed.")
@@ -248,24 +245,18 @@ class UnifiedEmbedder:
         print(f"DEBUG: faiss_path: {faiss_path}")
 
         # Filter duplicates
-        print("DEBUG: Getting existing IDs for deduplication...")
-        existing_ids = self._get_existing_ids(doc_type)
-        print(f"DEBUG: Found {len(existing_ids)} existing IDs")
-        
-        new_chunks = []
-        skipped_count = 0
-        
-        for chunk in chunks:
-            if self.skip_duplicates and chunk.id in existing_ids:
-                print(f"DEBUG: Skipping duplicate chunk: {chunk.id[:16]}...")
-                skipped_count += 1
-                continue
-            new_chunks.append(chunk)
+        print("DEBUG: Getting existing content hashes for deduplication...")
+        existing_hashes = self._get_existing_hashes(doc_type)
+        print(f"DEBUG: Found {len(existing_hashes)} existing content hashes")
+
+        from scripts.utils.chunk_utils import deduplicate_chunks  # if not already imported
+        new_chunks = deduplicate_chunks(chunks, existing_hashes, self.skip_duplicates, self.logger)
+
+        print(f"DEBUG: Deduplicated chunks: {len(new_chunks)} out of {len(chunks)} original")
 
 
         print(f"DEBUG: After deduplication:")
         print(f"DEBUG:   - Original chunks: {len(chunks)}")
-        print(f"DEBUG:   - Skipped duplicates: {skipped_count}")
         print(f"DEBUG:   - New chunks to process: {len(new_chunks)}")
 
         if not new_chunks:
@@ -354,31 +345,28 @@ class UnifiedEmbedder:
         print("DEBUG: run_async_batch() *** COMPLETE ***")
         print("=" * 100)
 
-    def _get_existing_ids(self, doc_type: str) -> set:
-        """Get existing chunk IDs to avoid duplicates."""
-        existing_ids = set()
+    def _get_existing_hashes(self, doc_type: str) -> set:
+        """
+        Reads the metadata file and returns a set of previously embedded content hashes.
+        Used for deduplication.
+        """
+        existing_hashes = set()
         meta_path = self.project.get_metadata_path(doc_type)
-        
-        print(f"DEBUG: _get_existing_ids() for doc_type: {doc_type}")
-        print(f"DEBUG: Checking meta_path: {meta_path}")
-        print(f"DEBUG: Meta file exists: {meta_path.exists()}")
-        
+
         if meta_path.exists():
             with open(meta_path, "r", encoding="utf-8") as f:
-                line_count = 0
                 for line in f:
-                    line_count += 1
                     try:
                         meta = json.loads(line)
-                        existing_ids.add(meta["id"])
-                    except json.JSONDecodeError as e:
-                        self.logger.warning(f"Skipping malformed JSON line: {line[:100]}...")
-                        print(f"DEBUG: WARNING - Malformed JSON line {line_count}: {line[:50]}...")
+                        content_hash = meta.get("content_hash")
+                        if content_hash:
+                            existing_hashes.add(content_hash)
+                    except json.JSONDecodeError:
+                        self.logger.warning(f"Skipping malformed metadata line: {line[:100]}")
                         continue
-                print(f"DEBUG: Processed {line_count} lines from metadata file")
-        
-        print(f"DEBUG: Found {len(existing_ids)} existing IDs")
-        return existing_ids
+
+        return existing_hashes
+
 
     def _hash(self, text: str) -> str:
         return hashlib.sha256(text.strip().encode("utf-8")).hexdigest()
