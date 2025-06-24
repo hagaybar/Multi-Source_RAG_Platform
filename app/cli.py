@@ -15,7 +15,7 @@ from scripts.chunking.models import Chunk
 from scripts.embeddings.unified_embedder import UnifiedEmbedder
 from scripts.utils.logger import LoggerManager
 from scripts.core.project_manager import ProjectManager
-
+from scripts.retrieval.retrieval_manager import RetrievalManager
 
 app = typer.Typer()
 
@@ -217,6 +217,27 @@ def embed(
     print("=" * 120)
     print("DEBUG: CLI embed() command COMPLETE")
     print("=" * 120)
+
+@app.command()
+def query(
+    project_path: str = typer.Argument(..., help="Path to the RAG project directory"),
+    query: str = typer.Argument(..., help="Search query string"),
+    top_k: int = typer.Option(10, help="Number of top chunks to return"),
+    strategy: str = typer.Option("late_fusion", help="Retrieval strategy to use")
+):
+    """
+    Retrieve top-k chunks from multiple document types using the configured strategy.
+    """
+    project = ProjectManager(project_path)
+    rm = RetrievalManager(project)
+
+    results = rm.retrieve(query=query, top_k=top_k, strategy=strategy)
+
+    print(f"\n--- Top {len(results)} results ---")
+    for i, chunk in enumerate(results, 1):
+        print(f"\n[{i}] From {chunk.meta.get('_retriever')} | score: {chunk.meta.get('similarity', 0):.3f}")
+        print(chunk.text.strip()[:500])  # Preview max 500 chars
+
 
 
 @app.command()

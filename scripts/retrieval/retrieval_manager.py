@@ -4,8 +4,9 @@ from typing import List, Dict, Optional
 from scripts.chunking.models import Chunk
 from scripts.core.project_manager import ProjectManager
 from scripts.retrieval.base import BaseRetriever, FaissRetriever
-from scripts.retrieval.strategies import STRATEGY_REGISTRY
-from scripts.retrieval.utils import dedupe_chunks
+from scripts.retrieval.strategies.strategy_registry import STRATEGY_REGISTRY
+from scripts.utils.chunk_utils import deduplicate_chunks
+
 
 class RetrievalManager:
     """
@@ -19,6 +20,9 @@ class RetrievalManager:
     def __init__(self, project: ProjectManager):
         self.project = project
         self.retrievers: Dict[str, BaseRetriever] = self._load_retrievers()
+
+    def embed_query(self, query: str) -> List[float]:
+        return self.embedder.encode([query])[0]
 
     def _load_retrievers(self) -> Dict[str, BaseRetriever]:
         """
@@ -73,4 +77,4 @@ class RetrievalManager:
         )
 
         # Optional post-filtering (deduplication, score threshold, etc.)
-        return dedupe_chunks(results)
+        return deduplicate_chunks(results)
