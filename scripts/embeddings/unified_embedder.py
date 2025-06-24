@@ -8,6 +8,7 @@ import numpy as np
 import faiss
 from typing import List, Optional, Union
 from pathlib import Path
+import uuid
 
 # CRITICAL: Add project root to Python path for imports
 import sys
@@ -22,6 +23,8 @@ from scripts.chunking.models import Chunk
 from scripts.utils.logger import LoggerManager
 from scripts.utils.chunks_io import load_chunks
 from scripts.embeddings.embedder_registry import get_embedder
+from scripts.utils.chunk_utils import deduplicate_chunks
+
 
 
 class UnifiedEmbedder:
@@ -181,10 +184,8 @@ class UnifiedEmbedder:
 
         new_chunks = []
         for chunk in chunks:
-            chunk_id = self._hash(chunk.text)
-            if self.skip_duplicates and chunk_id in existing_ids:
+            if self.skip_duplicates and chunk.id in existing_ids:
                 continue
-            chunk.meta["id"] = chunk_id
             new_chunks.append(chunk)
 
         if not new_chunks:
@@ -254,13 +255,12 @@ class UnifiedEmbedder:
         skipped_count = 0
         
         for chunk in chunks:
-            chunk_id = self._hash(chunk.text)
-            if self.skip_duplicates and chunk_id in existing_ids:
-                print(f"DEBUG: Skipping duplicate chunk: {chunk_id[:16]}...")
+            if self.skip_duplicates and chunk.id in existing_ids:
+                print(f"DEBUG: Skipping duplicate chunk: {chunk.id[:16]}...")
                 skipped_count += 1
                 continue
-            chunk.meta["id"] = chunk_id
             new_chunks.append(chunk)
+
 
         print(f"DEBUG: After deduplication:")
         print(f"DEBUG:   - Original chunks: {len(chunks)}")
@@ -274,7 +274,8 @@ class UnifiedEmbedder:
 
         chunk_texts = [c.text for c in new_chunks]
         # Use chunk IDs as custom_ids for better tracking
-        custom_ids = [chunk.meta["id"] for chunk in new_chunks]
+        custom_ids = [chunk.id for chunk in new_chunks]
+
 
         print(f"DEBUG: Prepared for BatchEmbedder:")
         print(f"DEBUG:   - chunk_texts length: {len(chunk_texts)}")
@@ -309,7 +310,7 @@ class UnifiedEmbedder:
         successful_chunks = []
         
         for chunk in new_chunks:
-            chunk_id = chunk.meta["id"]
+            chunk_id = chunk.id
             if chunk_id in result_dict:
                 vectors.append(result_dict[chunk_id])
                 successful_chunks.append(chunk)
