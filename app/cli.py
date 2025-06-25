@@ -1,3 +1,8 @@
+# Workaround for OpenMP runtime conflict on Windows (libomp vs. libiomp)
+# See: https://github.com/pytorch/pytorch/issues/37377 and https://openmp.llvm.org
+import os
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+
 import pathlib
 from shutil import copy
 import copy as copy_module
@@ -219,7 +224,7 @@ def embed(
     print("=" * 120)
 
 @app.command()
-def query(
+def retrieve(
     project_path: str = typer.Argument(..., help="Path to the RAG project directory"),
     query: str = typer.Argument(..., help="Search query string"),
     top_k: int = typer.Option(10, help="Number of top chunks to return"),
@@ -237,8 +242,6 @@ def query(
     for i, chunk in enumerate(results, 1):
         print(f"\n[{i}] From {chunk.meta.get('_retriever')} | score: {chunk.meta.get('similarity', 0):.3f}")
         print(chunk.text.strip()[:500])  # Preview max 500 chars
-
-
 
 @app.command()
 def config(project_dir: Path) -> None:
