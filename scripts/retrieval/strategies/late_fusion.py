@@ -6,11 +6,11 @@ from scripts.retrieval.base import BaseRetriever
 
 
 def late_fusion(
-    query: str,
-    retrievers: Dict[str, BaseRetriever],
-    top_k: int,
-    filters: Dict
-) -> List[Chunk]:
+        query_vector: List[float], 
+        retrievers: Dict[str, BaseRetriever], 
+        top_k: int, 
+        filters: Dict) -> List[Chunk]:
+
     """
     Simple late-fusion strategy: queries each retriever independently,
     collects all results, sorts them by similarity, and returns top-K.
@@ -28,7 +28,7 @@ def late_fusion(
 
     for doc_type, retriever in retrievers.items():
         try:
-            chunks = retriever.retrieve(query, top_k=top_k, filters=filters)
+            chunks = retriever.retrieve_vector(query_vector, top_k=top_k, filters=filters)
             for chunk in chunks:
                 chunk.meta["_retriever"] = doc_type  # Track where it came from
             candidates.extend(chunks)
