@@ -12,6 +12,8 @@ import uuid
 
 # CRITICAL: Add project root to Python path for imports
 import sys
+
+from torch import chunk
 project_root = Path(__file__).parent.parent.parent  # Go up from scripts/embeddings/ to project root
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
@@ -215,6 +217,7 @@ class UnifiedEmbedder:
 
         with open(meta_path, "a", encoding="utf-8") as f:
             for chunk in new_chunks:
+                chunk.meta["text"] = chunk.text  # ← inject text into metadata
                 f.write(json.dumps(chunk.meta) + "\n")
 
     def run_async_batch(self, doc_type: str, chunks: List[Chunk]) -> None:
@@ -336,6 +339,7 @@ class UnifiedEmbedder:
         # Store metadata in proper JSONL format
         with open(meta_path, "a", encoding="utf-8") as f:
             for chunk in successful_chunks:
+                chunk.meta["text"] = chunk.text  # ← inject text into metadata
                 f.write(json.dumps(chunk.meta) + "\n")
 
         print(f"DEBUG: Saved metadata for {len(successful_chunks)} chunks to {meta_path}")
