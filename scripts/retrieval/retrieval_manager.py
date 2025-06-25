@@ -1,5 +1,7 @@
 from pathlib import Path
 from typing import List, Dict, Optional
+import traceback
+
 
 from scripts.chunking.models import Chunk
 from scripts.core.project_manager import ProjectManager
@@ -23,20 +25,29 @@ class RetrievalManager:
         self.retrievers: Dict[str, BaseRetriever] = self._load_retrievers()
         self.embedder = get_embedder(project)
 
+
     def _load_retrievers(self) -> Dict[str, BaseRetriever]:
-        """
-        Loads a FAISS-based retriever for each document type that has an index.
-        """
         retrievers = {}
         doc_types = [
             f.stem for f in self.project.faiss_dir.glob("*.faiss")
             if (self.project.get_metadata_path(f.stem)).exists()
         ]
 
+        print(f"DEBUG: Discovered doc_types: {doc_types}")
+
         for doc_type in doc_types:
             index_path = self.project.get_faiss_path(doc_type)
             metadata_path = self.project.get_metadata_path(doc_type)
-            retrievers[doc_type] = FaissRetriever(index_path, metadata_path)
+
+            print(f"DEBUG: Loading retriever for {doc_type}")
+            print(f"       - FAISS path:    {index_path}")
+            print(f"       - Metadata path: {metadata_path}")
+
+            try:
+                retrievers[doc_type] = FaissRetriever(index_path, metadata_path)
+            except Exception as e:
+                print(f"[WARN] Failed to load retriever for {doc_type}: {e}")
+                traceback.print_exc()
 
         return retrievers
 
