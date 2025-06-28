@@ -1,6 +1,0 @@
-This is the first paragraph, significantly expanded to ensure it meets the minimum token count. We are adding a lot of dummy text here to make sure that this specific paragraph itself is long enough to be considered a chunk. More words, more words, and even more words. Let's count: one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty twenty-one twenty-two twenty-three twenty-four twenty-five. This should be more than enough.
-
-This is the second paragraph. It also has text.
-This line is part of the second paragraph.
-
-This is a third, short paragraph.
