@@ -1,47 +1,57 @@
-# Embeddings Folder
+# Embeddings (`scripts/embeddings`)
 
-The `scripts/embeddings` folder is designated for scripts and modules related to generating and managing text embeddings. Text embeddings are numerical representations of text that capture semantic meaning, allowing for tasks like similarity search, which is crucial for Retrieval Augmented Generation (RAG) systems.
+The `scripts/embeddings` folder contains modules responsible for generating and managing text embeddings, which are crucial for the Retrieval Augmented Generation (RAG) capabilities of this project. These embeddings are numerical representations of text that capture semantic meaning, enabling tasks like similarity search.
 
-- `__init__.py`: An empty file that marks the `embeddings` folder as a Python package.
-- `ChunkEmbedder.py`: Contains the `ChunkEmbedder` class, which is central to the embedding generation process.
+## Core Components
 
-## ChunkEmbedder
+The embedding system is designed to be modular and configurable, allowing for different embedding providers and processing strategies.
 
-The `ChunkEmbedder` class (`ChunkEmbedder.py`) is responsible for generating embeddings for text chunks and managing their storage in a FAISS index and corresponding metadata. It is utilized by the `embed` command defined in `app/cli.py`.
+### 1. `base.py` - Abstract Base Class
+*   **`BaseEmbedder`**: An abstract base class (ABC) that defines the common interface for all embedder implementations.
+    *   It mandates an `encode(self, texts: List[str]) -> np.ndarray` method, which should take a list of text strings and return a NumPy array of their corresponding float32 embeddings.
 
-Key functionalities include:
+### 2. `bge_embedder.py` - Local BGE Embedder
+*   **`BGEEmbedder(BaseEmbedder)`**: An embedder that uses the `sentence-transformers` library to generate embeddings locally.
+    *   It defaults to the "BAAI/bge-large-en" model but can be configured to use other SentenceTransformer-compatible models.
+    *   Suitable for scenarios where local processing is preferred or when specific open-source models are required.
 
-- **Initialization**:
-    - Takes a `ProjectManager` instance (from `scripts.core.project_manager`) to manage project paths and configurations.
-    - Initializes a SentenceTransformer model for generating embeddings. The default model is "BAAI/bge-large-en", but this can be configured.
+### 3. `litellm_embedder.py` - LiteLLM API Embedder
+*   **`LiteLLMEmbedder(BaseEmbedder)`**: An embedder designed to work with LiteLLM-compatible embedding APIs, such as those provided by OpenAI, Ollama, Together.ai, and others.
+    *   It handles making HTTP requests to the specified API endpoint, including authentication (e.g., API keys).
+    *   It parses the API response to extract the embedding vectors.
 
-- **Loading Chunks**:
-    - `load_chunks_from_tsv()`: Reads chunk data from a TSV file named `chunks.tsv`, expected to be located in the project's `input` directory (as defined by the `ProjectManager`). Each row in the TSV likely represents a chunk and its associated metadata.
+### 4. `embedder_registry.py` - Embedder Factory
+*   **`get_embedder(project: ProjectManager) -> BaseEmbedder`**: A factory function that instantiates and returns the appropriate embedder based on the project's configuration (`project.config`).
+    *   It reads the `embedding.provider` setting from the configuration (e.g., "local", "litellm").
+    *   If "local", it initializes a `BGEEmbedder` (configurable model).
+    *   If "litellm", it initializes a `LiteLLMEmbedder` (configurable endpoint, model, API key).
+    *   It ensures a single instance of the embedder is created and reused.
 
-- **Running the Embedding Process**:
-    - `run(chunks)`: This is the main method that orchestrates the embedding process.
-        - It takes a list of `Chunk` objects (presumably from `scripts.chunking.models.Chunk`).
-        - It groups these chunks by their `doc_type` (a metadata attribute indicating the source document type, e.g., 'pdf', 'email').
-        - For each document type, it calls `_process_doc_type`.
+### 5. `unified_embedder.py` - Main Orchestrator
+*   **`UnifiedEmbedder`**: This is the primary class that orchestrates the entire embedding generation workflow.
+    *   **Initialization**: Takes a `ProjectManager` instance for accessing configuration and managing file paths. It also uses `LoggerManager` for logging.
+    *   **Embedder Selection**: Uses `embedder_registry.get_embedder()` to obtain an instance of the configured embedder.
+    *   **Chunk Loading**: Loads text chunks to be embedded, typically from `.tsv` files (e.g., `chunks.tsv` or `chunks_*.tsv`) located in the project's input directory. Chunks are expected to be instances of `scripts.chunking.models.Chunk`.
+    *   **Deduplication**: Implements a deduplication strategy by calculating content hashes (SHA256) of chunk texts. It checks against previously processed chunk hashes (stored in metadata files) to avoid re-embedding identical content, if `skip_duplicates` is enabled in the configuration.
+    *   **Processing Modes**:
+        *   **Synchronous Batch**: For local or standard API embedders, it processes chunks in batches for efficiency.
+        *   **Asynchronous Batch (OpenAI)**: If configured (`embedding.use_async_batch: true`), it leverages `scripts.api_clients.openai.batch_embedder.BatchEmbedder` to use OpenAI's batch API for potentially faster and more cost-effective embedding of large datasets. In this mode, the local embedder from the registry is bypassed for the OpenAI-specific batch client.
+    *   **Storage**:
+        *   **FAISS Index**: Saves the generated numerical embeddings into FAISS indexes (`.index` files). FAISS allows for efficient similarity searching over large sets of vectors. Indexes are typically created per `doc_type`.
+        *   **Metadata**: Stores metadata associated with each chunk (including the original text, chunk ID, content hash, and any other relevant details from the `Chunk` object) in JSONL files (`.jsonl`). Each line in the file is a JSON object representing a chunk's metadata.
+    *   **Output Management**: Organizes output FAISS indexes and metadata files into directories managed by `ProjectManager`, typically within `output/faiss/` and `output/metadata/`, often further subdirectory by `doc_type`.
+    *   **Grouping**: Processes chunks grouped by their `doc_type` (an attribute of the `Chunk` metadata), allowing for separate FAISS indexes and metadata files for different types of documents.
 
-- **Processing by Document Type**:
-    - `_process_doc_type(doc_type, chunks)`: This private method handles the embedding and storage for chunks of a specific document type.
-        - **FAISS Index Management**:
-            - It attempts to read an existing FAISS index for the given `doc_type` from the path provided by `ProjectManager`.
-            - If no index exists, it creates a new `IndexFlatL2` FAISS index. FAISS is a library for efficient similarity search.
-        - **Metadata Management**:
-            - It reads an existing JSONL (JSON Lines) file for metadata associated with the `doc_type`.
-            - It extracts existing chunk IDs from this metadata to avoid processing and storing duplicate chunks.
-        - **Embedding Generation**:
-            - For new chunks (those not found in the existing metadata), it encodes their text content using the initialized SentenceTransformer model to produce numerical embeddings.
-        - **Deduplication**:
-            - It uses a SHA256 hash of the chunk's text content as a unique identifier (`chunk_id`). This ID is used for deduplication against existing metadata.
-        - **Storage**:
-            - New embeddings are added to the FAISS index.
-            - New metadata (including the `chunk_id` and other relevant details) is appended to the JSONL metadata file.
-        - The FAISS index and metadata files are saved to paths determined by the `ProjectManager` (typically within the project's `output/faiss` and `output/metadata` directories, respectively).
+## Workflow Overview
 
-- **Logging**:
-    - The class utilizes a `LoggerManager` (presumably a custom logging utility from `scripts.utils.logger`) to log information about its operations, such as the number of chunks processed, new chunks added, and paths to saved files.
+1.  The `UnifiedEmbedder` is instantiated with a `ProjectManager`.
+2.  Based on project configuration (e.g., `config.yml`), the `embedder_registry` provides the appropriate `BaseEmbedder` implementation (either `BGEEmbedder` for local embeddings or `LiteLLMEmbedder` for API-based embeddings), unless OpenAI async batch mode is selected.
+3.  `UnifiedEmbedder` loads text chunks.
+4.  It filters out chunks that have already been embedded (deduplication based on content hash).
+5.  For new chunks:
+    *   If using OpenAI async batch mode, it prepares data and uses `BatchEmbedder` to submit an asynchronous job to OpenAI, then retrieves results.
+    *   Otherwise, it uses the selected embedder's `encode` method to generate embeddings for batches of chunk texts.
+6.  The generated embeddings are added to a FAISS index, and corresponding metadata (including the original chunk text) is saved to a JSONL file.
+7.  These FAISS indexes and metadata files are then used by other parts of the application (e.g., a retrieval system) to find relevant information for RAG.
 
-In summary, `ChunkEmbedder` provides a robust mechanism to convert textual chunks into searchable embeddings, ensuring efficient storage and deduplication, and integrating with the project's defined structure via `ProjectManager`.
+This system provides a robust and flexible way to convert textual content into a searchable vector space, forming a foundational component of the project's information retrieval capabilities.
