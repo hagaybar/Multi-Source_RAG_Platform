@@ -3,10 +3,10 @@ import pdfplumber
 from pdfminer.pdfdocument import PDFPasswordIncorrect
 from pdfminer.pdfparser import PDFSyntaxError
 from pdfplumber.utils.exceptions import PdfminerException # Corrected import
-from scripts.ingestion.models import RawDoc, UnsupportedFileError
+from scripts.ingestion.models import UnsupportedFileError # RawDoc is not directly returned
 # No hashlib needed as UID is not part of RawDoc
 
-def load_pdf(path: str | Path) -> RawDoc:
+def load_pdf(path: str | Path) -> tuple[str, dict]: # Corrected return type
     if not isinstance(path, Path):
         path = Path(path)
 
