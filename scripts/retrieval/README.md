@@ -12,14 +12,15 @@ The retrieval system handles querying across multiple data types (PDF, DOCX, XLS
 
 ## 📁 File Structure
 
-| File | Purpose | Connected To |
+| File / Directory | Purpose | Connected To |
 |------|---------|---------------|
-| `retrieval_manager.py` | Orchestration layer. Manages retrieval strategies and result fusion. | CLI, UI, Agents |
-| `base.py` | BaseRetriever abstract class and FaissRetriever implementation. | RetrievalManager |
-| `strategies.py` | Strategy plug-ins: late fusion, agentic rerank, etc. | RetrievalManager |
-| `utils.py` | Helpers for score normalization, sorting, deduplication. | Strategies |
-| `embedder.py` *(optional)* | Shared embedding logic to reuse model across embedding + querying. | FaissRetriever |
-| `app/cli.py` *(modify)* | Adds `retrieve` command to CLI. | RetrievalManager |
+| `retrieval_manager.py` | Orchestration layer. Manages retrieval strategies and result fusion. | CLI, UI, Agents, `scripts.embeddings.embedder_registry` |
+| `base.py` | BaseRetriever abstract class and FaissRetriever implementation. | RetrievalManager, `scripts.embeddings.embedder_registry` |
+| `strategies/` | Directory containing retrieval strategy implementations (e.g., `late_fusion.py`). | `strategy_registry.py` |
+| `strategies/strategy_registry.py` | Registers available retrieval strategies. | RetrievalManager, strategy files in `strategies/` |
+| `scripts/utils/chunk_utils.py` | Contains utility functions like `deduplicate_chunks`. | RetrievalManager |
+| `scripts/embeddings/embedder_registry.py` | Provides embedding models for queries. | RetrievalManager, FaissRetriever |
+| `app/cli.py` *(relevant section)* | Adds `retrieve` command to CLI, utilizing `RetrievalManager`. | RetrievalManager |
 | `agent_router.py` *(future)* | Agent-based dynamic routing (e.g. pick best strategy). | RetrievalManager, LLMs |
 
 ---
@@ -45,9 +46,11 @@ Core class that handles:
 
 ## 🔌 Strategies
 
-Available strategies (in `strategies.py`):
-- `late_fusion`: Retrieve top-K from each type, normalize, re-rank globally
-- `per_type_top_k`: Raw K-per-type (no fusion)
+Retrieval strategies are defined in the `scripts/retrieval/strategies/` directory and registered in `scripts/retrieval/strategies/strategy_registry.py`.
+
+Available strategies:
+- `late_fusion` (defined in `scripts/retrieval/strategies/late_fusion.py`): Retrieve top-K from each document type, then sort all candidates globally by similarity score. Score normalization can be added as a future enhancement to this or other strategies.
+- `per_type_top_k` *(example, not currently implemented)*: Raw K-per-type (no fusion or global ranking).
 - `agentic_rerank`: Stub for LLM-based reranking (future)
 
 ---
