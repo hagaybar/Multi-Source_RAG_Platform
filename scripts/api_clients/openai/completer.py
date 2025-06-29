@@ -13,11 +13,11 @@ class OpenAICompleter:
     def __init__(self, api_key: str | None = None, model_name: str = "gpt-3.5-turbo"):
         """
         Initializes the OpenAICompleter.
-        LiteLLM will use the OPENAI_API_KEY environment variable by default if api_key is not provided.
+        LiteLLM will use the OPEN_AI environment variable by default if api_key is not provided.
 
         Args:
             api_key (str, optional): OpenAI API key. If provided, it will be used.
-                                     Otherwise, LiteLLM will look for OPENAI_API_KEY env var.
+                                     Otherwise, LiteLLM will look for OPEN_AI env var.
             model_name (str, optional): Default OpenAI model to use for completions.
                                         Defaults to "gpt-3.5-turbo".
                                         Ensure this model name is prefixed with "openai/" if required by your LiteLLM setup,
@@ -25,12 +25,12 @@ class OpenAICompleter:
                                         For direct OpenAI, "gpt-3.5-turbo" is fine.
         """
         if api_key:
-            os.environ["OPENAI_API_KEY"] = api_key # LiteLLM picks this up
+            os.environ["OPEN_AI"] = api_key # LiteLLM picks this up
 
         # Check if the API key is available for LiteLLM
-        if not os.getenv("OPENAI_API_KEY"):
-            logger.error("OpenAI API key not found. Please set the OPENAI_API_KEY environment variable or pass api_key to constructor.")
-            raise ValueError("OpenAI API key not found. Please set the OPENAI_API_KEY environment variable or pass api_key to constructor.")
+        if not os.getenv("OPEN_AI"):
+            logger.error("OpenAI API key not found. Please set the OPEN_AI environment variable or pass api_key to constructor.")
+            raise ValueError("OpenAI API key not found. Please set the OPEN_AI environment variable or pass api_key to constructor.")
 
         # The model name for LiteLLM should be just the model ID, e.g., "gpt-3.5-turbo" for OpenAI
         self.model_name = model_name
@@ -72,7 +72,8 @@ class OpenAICompleter:
                 messages=messages,
                 temperature=temperature,
                 max_tokens=max_tokens,
-                # api_key is not explicitly passed here if OPENAI_API_KEY is set,
+                api_key=os.getenv("OPEN_AI")
+                # api_key is not explicitly passed here if OPEN_AI is set,
                 # LiteLLM handles it. If self.api_key was set in __init__ from param,
                 # it's already in os.environ.
             )
@@ -92,16 +93,16 @@ class OpenAICompleter:
             return None
 
 if __name__ == '__main__':
-    # Example Usage (requires OPENAI_API_KEY environment variable to be set)
+    # Example Usage (requires OPEN_AI environment variable to be set)
     logging.basicConfig(level=logging.INFO)
     logger.info("Starting OpenAICompleter (via LiteLLM) direct test...")
 
-    # OPENAI_API_KEY should be set in the environment
-    if not os.getenv("OPENAI_API_KEY"):
-        logger.error("Cannot run test: OPENAI_API_KEY environment variable not set.")
+    # OPEN_AI should be set in the environment
+    if not os.getenv("OPEN_AI"):
+        logger.error("Cannot run test: OPEN_AI environment variable not set.")
     else:
         try:
-            # No need to pass api_key if OPENAI_API_KEY is set
+            # No need to pass api_key if OPEN_AI is set
             completer = OpenAICompleter(model_name="gpt-3.5-turbo")
             test_prompt = "What is the capital of France? Respond in one sentence."
             logger.info(f"Sending test prompt: '{test_prompt}'")
