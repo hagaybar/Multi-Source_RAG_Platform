@@ -1,9 +1,15 @@
 # Workaround for OpenMP runtime conflict on Windows (libomp vs. libiomp)
 # See: https://github.com/pytorch/pytorch/issues/37377 and https://openmp.llvm.org
+import sys
+import pathlib
+
+# Ensure the root directory (where pyproject.toml lives) is on sys.path
+ROOT = pathlib.Path(__file__).resolve().parents[1]
+sys.path.append(str(ROOT))
+
 import os
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
-import pathlib
 from shutil import copy
 import copy as copy_module
 import logging # Added for ask command
