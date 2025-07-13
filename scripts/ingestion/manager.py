@@ -58,13 +58,27 @@ class IngestionManager:
                             # This case should ideally not be reached if LOADER_REGISTRY is set up correctly
                             print(f"Error: Loader for {item.suffix} is not callable.")
                             continue
-                        content, metadata = loader_or_class(str(item))
-                        final_meta = base_metadata.copy()
-                        final_meta.update(metadata)
-                        raw_docs.append(
-                            RawDoc(content=content, metadata=final_meta)
-                        )
-                        self.logger.debug(f"Ingested segment from {item} (function loader): {len(raw_docs)} total")
+                        result = loader_or_class(str(item))
+                        if isinstance(result, list):
+                            for text_segment, seg_meta in result:
+                                final_meta = base_metadata.copy()
+                                final_meta.update(seg_meta)
+                                raw_docs.append(
+                                    RawDoc(content=text_segment, metadata=final_meta)
+                                )
+                                self.logger.debug(
+                                    f"Ingested segment from {item} (function loader list): {len(raw_docs)} total"
+                                )
+                        else:
+                            content, metadata = result
+                            final_meta = base_metadata.copy()
+                            final_meta.update(metadata)
+                            raw_docs.append(
+                                RawDoc(content=content, metadata=final_meta)
+                            )
+                            self.logger.debug(
+                                f"Ingested segment from {item} (function loader): {len(raw_docs)} total"
+                            )
 
                 except UnsupportedFileError as e:
                     self.logger.warning(f"Loader for {item.suffix} is not callable. Found error: {e} Skipping.")

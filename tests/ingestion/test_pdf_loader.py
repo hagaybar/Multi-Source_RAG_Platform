@@ -59,17 +59,19 @@ class TestPDFLoader:
         if not SIMPLE_PDF.exists():
             pytest.skip("simple.pdf fixture not available.")
 
-        text, meta = load_pdf(SIMPLE_PDF)
+        segments = load_pdf(SIMPLE_PDF)
+
+        assert isinstance(segments, list)
+        text = "\n\n".join([seg[0] for seg in segments])
+        meta = segments[0][1]
 
         # content
         assert text == "This is page 1.\n\nThis is page 2."
 
-        # metadata
         assert meta["source_path"] == str(SIMPLE_PDF.resolve())
         assert meta["title"] == "Simple Test PDF"
         assert meta["author"] == "Test Author"
         assert meta["num_pages"] == 2
-        # created / modified may be None depending on platform
         assert "created" in meta and "modified" in meta
 
     def test_load_encrypted_pdf_raises_error(self):
