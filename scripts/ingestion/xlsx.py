@@ -38,7 +38,8 @@ class XlsxIngestor(AbstractIngestor):
                             "doc_type": "xlsx",
                             "sheet_name": sheet_name,
                             "row_range": f"{chunk_start_row}-{i}",
-                            "source_filepath": filepath
+                            "source_filepath": filepath,
+                            "type": "sheet_content",
                         }
                         extracted_data.append((chunk_text, meta))
 
@@ -54,7 +55,8 @@ class XlsxIngestor(AbstractIngestor):
                         "doc_type": "xlsx",
                         "sheet_name": sheet_name,
                         "row_range": f"{chunk_start_row}-{i}",
-                        "source_filepath": filepath
+                        "source_filepath": filepath,
+                        "type": "sheet_content",
                     }
                     extracted_data.append((chunk_text, meta))
 
