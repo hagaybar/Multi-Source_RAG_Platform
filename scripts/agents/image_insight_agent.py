@@ -1,5 +1,6 @@
 from pathlib import Path
 import base64
+import uuid
 
 from scripts.agents.base import AgentProtocol
 from scripts.chunking.models import Chunk
@@ -14,17 +15,17 @@ class ImageInsightAgent(AgentProtocol):
         self.prompt_template = prompt_template or self.default_prompt()
         self.logger = LoggerManager.get_logger(__name__)
 
-    def run(self, chunk: Chunk, project: ProjectManager) -> Chunk:
+    def run(self, chunk: Chunk, project: ProjectManager) -> list[Chunk]:
         image_path = chunk.meta.get("image_path")
         if not image_path:
-            return chunk
+            return [chunk]
 
-        context = chunk.text[:500]
         full_path = Path(project.root_dir) / image_path
         if not full_path.exists():
             self.logger.warning(f"ImageInsightAgent: file not found {full_path}")
-            return chunk
+            return [chunk]
 
+        context = chunk.text[:500]
         encoded_image = self.encode_image(full_path)
         prompt = self.prompt_template.replace("{{ context }}", context)
 
@@ -33,13 +34,33 @@ class ImageInsightAgent(AgentProtocol):
             insight = completer.get_multimodal_completion(
                 prompt=prompt, image_b64=encoded_image
             )
-            if insight:
-                chunk.meta["image_summary"] = insight
         except Exception as e:
             self.logger.error(f"Image insight generation failed: {e}")
             chunk.meta["image_summary_error"] = str(e)
+            return [chunk]
 
-        return chunk
+        # Determine output behavior based on project config
+        cfg = project.config.get("agents", {}).get("image_insight", {})
+        mode = cfg.get("output_mode", "append_to_chunk").lower()
+
+        if mode == "separate_chunk":
+            image_chunk = Chunk(
+                id=str(uuid.uuid4()),
+                doc_id=chunk.doc_id,
+                text=insight,
+                token_count=len(insight.split()),
+                meta={
+                    "chunk_type": "image_insight",
+                    "source_filepath": chunk.meta.get("source_filepath"),
+                    "image_path": image_path,
+                    "parent_chunk_id": chunk.id,
+                }
+            )
+            return [chunk, image_chunk]
+
+        # Default behavior: append to meta
+        chunk.meta["image_summary"] = insight
+        return [chunk]
 
     def encode_image(self, path: Path) -> str:
         with open(path, "rb") as f:
