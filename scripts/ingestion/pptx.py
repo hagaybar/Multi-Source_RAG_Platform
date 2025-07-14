@@ -10,16 +10,12 @@ logger = logging.getLogger("pptx_ingestor")
 def _infer_project_root(file_path: Path) -> Path:
     """
     Extracts the base project directory from a known data/projects/{project_name}/... path.
+    Returns: Path to data/projects/{project_name}
     """
     parts = file_path.resolve().parts
-    if "data" in parts and "projects" in parts:
-        try:
-            data_idx = parts.index("data")
-            projects_idx = parts.index("projects")
-            if projects_idx > data_idx and projects_idx + 1 < len(parts):
-                return Path(*parts[: projects_idx + 2])  # up to project name
-        except ValueError:
-            pass
+    for i in range(len(parts) - 2):
+        if parts[i] == "data" and parts[i + 1] == "projects":
+            return Path(*parts[:i + 3])
     return file_path.parent
 
 
