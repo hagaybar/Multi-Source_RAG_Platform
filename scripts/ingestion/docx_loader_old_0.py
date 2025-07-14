@@ -7,12 +7,24 @@ from typing import List, Tuple
 from docx import Document
 from docx.oxml.ns import qn
 
-from scripts.utils.image_utils import (
-    infer_project_root,
-    ensure_image_cache_dir,
-    save_image_blob,
-    generate_image_filename
-)
+
+def _infer_project_root(file_path: Path) -> Path:
+    """Best-effort guess of the project root from a raw file path."""
+    parts = file_path.resolve().parts
+    if "projects" in parts:
+        idx = parts.index("projects")
+        if idx + 1 < len(parts):
+            return Path(*parts[: idx + 2])
+    return file_path.parent
+
+
+def _save_image(blob: bytes, project_root: Path, filename: str) -> str:
+    rel_dir = Path("input") / "cache" / "images"
+    out_path = project_root / rel_dir / filename
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(out_path, "wb") as f:
+        f.write(blob)
+    return str(rel_dir / filename)
 
 
 def load_docx(path: str | pathlib.Path) -> List[Tuple[str, dict]]:
@@ -25,55 +37,35 @@ def load_docx(path: str | pathlib.Path) -> List[Tuple[str, dict]]:
         path = Path(path)
 
     document = Document(path)
-    project_root = infer_project_root(path)
-    image_dir = ensure_image_cache_dir(project_root)
-
+    project_root = _infer_project_root(path)
     segments: List[Tuple[str, dict]] = []
     file_stem = path.stem
-    doc_id = str(path)
 
     for para_idx, paragraph in enumerate(document.paragraphs, start=1):
         text = paragraph.text.strip()
-        base_meta = {
-            "doc_type": "docx",
-            "paragraph_number": para_idx,
-            "source_filepath": str(path),
-            "doc_id": doc_id,
-        }
+        if not text:
+            continue
 
+        base_meta = {"doc_type": "docx", "paragraph_number": para_idx}
         img_count = 0
-        image_found = False
-
         for run in paragraph.runs:
             blips = run._element.xpath(".//a:blip")
             for blip in blips:
                 rId = blip.get(qn("r:embed"))
                 image_part = document.part.related_parts.get(rId)
-                if not image_part:
+                if image_part is None:
                     continue
-
-                img_name = generate_image_filename(
-                    doc_id=doc_id,
-                    page_number=para_idx,
-                    img_index=img_count,
-                )
-                img_path = image_dir / img_name
-                save_image_blob(image_part.blob, img_path)
-
-                meta = base_meta.copy()
-                meta["image_path"] = str(img_path.relative_to(project_root))
-                segments.append((text or "[Image-only content]", meta))
                 img_count += 1
-                image_found = True
+                img_name = f"{file_stem}_page{para_idx}_img{img_count}.png"
+                rel_path = _save_image(image_part.blob, project_root, img_name)
+                meta = base_meta.copy()
+                meta["image_path"] = rel_path
+                segments.append((text, meta))
 
-        # If no image, but text exists → add as regular text chunk
-        if not image_found and text:
+        if img_count == 0:
             segments.append((text, base_meta))
 
-    print(f"[INFO] Extracted {len([s for s in segments if 'image_path' in s[1]])} images from {path.name}")
-
-
-    # Tables as additional segments
+    # Tables are appended as additional segments
     for tbl_idx, table in enumerate(document.tables, start=1):
         rows = []
         for row in table.rows:
@@ -85,8 +77,6 @@ def load_docx(path: str | pathlib.Path) -> List[Tuple[str, dict]]:
             meta = {
                 "doc_type": "docx",
                 "table_number": tbl_idx,
-                "source_filepath": str(path),
-                "doc_id": doc_id,
             }
             segments.append((tbl_text, meta))
 
