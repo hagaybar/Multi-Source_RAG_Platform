@@ -407,7 +407,7 @@ def enrich_images(
     import json
 
     project = ProjectManager(project_path)
-    agent = ImageInsightAgent()
+    agent = ImageInsightAgent(project)
 
     input_tsv = project_path / "input" / f"chunks_{doc_type}.tsv"
     output_dir = (project_path / "input" / "enriched") if not overwrite else (project_path / "input")
