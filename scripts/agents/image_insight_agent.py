@@ -10,10 +10,25 @@ from scripts.utils.logger import LoggerManager
 
 
 class ImageInsightAgent(AgentProtocol):
-    def __init__(self, model_name: str = "gpt-4o", prompt_template: str | None = None):
-        self.model_name = model_name
-        self.prompt_template = prompt_template or self.default_prompt()
+    
+    def __init__(self, project: ProjectManager):
+        self.project = project
+        agent_cfg = project.config.get("agents", {})
+
+        self.model_name = agent_cfg.get("image_agent_model", "gpt-4o")
+        self.prompt_template = agent_cfg.get("image_prompt", self.default_prompt())
+        self.output_mode = agent_cfg.get("output_mode", "append_to_chunk").lower()
+
+        print(f"[DEBUG] Using image prompt:\n{self.prompt_template}")
+        if not self.prompt_template:
+            raise ValueError("ImageInsightAgent requires a valid prompt template.")
+        print(f"[DEBUG] Using model: {self.model_name}")
+        print(f"[DEBUG] Output mode: {self.output_mode}")
+        
+
+
         self.logger = LoggerManager.get_logger(__name__)
+
 
     def run(self, chunk: Chunk, project: ProjectManager) -> list[Chunk]:
         image_path = chunk.meta.get("image_path")
@@ -40,10 +55,10 @@ class ImageInsightAgent(AgentProtocol):
             return [chunk]
 
         # Determine output behavior based on project config
-        cfg = project.config.get("agents", {}).get("image_insight", {})
-        mode = cfg.get("output_mode", "append_to_chunk").lower()
+        # cfg = project.config.get("agents", {}).get("image_insight", {})
+        # mode = cfg.get("output_mode", "append_to_chunk").lower()
 
-        if mode == "separate_chunk":
+        if self.output_mode == "separate_chunk":
             image_chunk = Chunk(
                 id=str(uuid.uuid4()),
                 doc_id=chunk.doc_id,
