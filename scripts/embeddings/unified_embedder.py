@@ -236,6 +236,12 @@ class UnifiedEmbedder:
             self.logger.info("No new chunks to embed.")
             print("DEBUG: No new chunks to embed - returning")
             return
+        
+                # Inject image_summary into chunk.text
+        for chunk in new_chunks:
+            image_summary = chunk.meta.get("image_summary")
+            if image_summary:
+                chunk.text += f"\n\n[Image Insight]: {image_summary}"
 
         texts = [c.text for c in new_chunks]
         vectors = []
