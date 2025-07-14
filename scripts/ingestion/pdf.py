@@ -62,6 +62,7 @@ def load_pdf(path: str | Path) -> List[Tuple[str, dict]]: # Corrected return typ
                 images = page.images
                 if images:
                     for img_idx, img in enumerate(images, start=1):
+                        print(f"[DEBUG] Extracting image: {img_name} for slide {page_number}")
                         bbox = (img["x0"], img["top"], img["x1"], img["bottom"])
                         img_name = f"{file_stem}_page{page_number}_img{img_idx}.png"
                         rel_path = _save_image(page, bbox, project_root, img_name)
