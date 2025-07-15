@@ -55,6 +55,35 @@ The `cli.py` script exposes the following commands:
     *   **Modules Used**:
         *   `scripts.core.project_manager.ProjectManager`: To load and display the project's configuration.
 
+5.  **`ask`**
+    *   **Description**: Asks a question to the RAG system. It retrieves relevant context chunks and uses an LLM to generate an answer.
+    *   **Usage**: `python -m app.cli ask <project_path> <query> [--top_k <k>] [--temperature <t>] [--max_tokens <m>] [--model_name <model>]`
+    *   **Arguments**:
+        *   `project_path`: (Required) Path to the RAG project directory.
+        *   `query`: (Required) The question to ask the RAG system.
+    *   **Options**:
+        *   `--top_k <k>`: (Optional) Number of context chunks to retrieve (default: 5).
+        *   `--temperature <t>`: (Optional) LLM temperature for response generation (default: 0.7).
+        *   `--max_tokens <m>`: (Optional) LLM maximum tokens for the response (default: 500).
+        *   `--model_name <model>`: (Optional) OpenAI model to use for generating the answer (default: "gpt-3.5-turbo").
+    *   **Modules Used**:
+        *   `scripts.retrieval.retrieval_manager.RetrievalManager`: For retrieving context chunks.
+        *   `scripts.prompting.prompt_builder.PromptBuilder`: For building the prompt for the LLM.
+        *   `scripts.api_clients.openai.completer.OpenAICompleter`: For getting the completion from the LLM.
+        *   `scripts.core.project_manager.ProjectManager`: For project context.
+
+6.  **`enrich-images`**
+    *   **Description**: Enrich chunks with image summaries using the ImageInsightAgent.
+    *   **Usage**: `python -m app.cli enrich-images <project_path> [--doc_type <doc_type>] [--overwrite]`
+    *   **Arguments**:
+        *   `project_path`: (Required) Path to the project folder.
+    *   **Options**:
+        *   `--doc_type <doc_type>`: (Optional) Document type to enrich (e.g., pptx, pdf, docx) (default: "pptx").
+        *   `--overwrite`: (Optional) Overwrite original TSV instead of saving to /enriched.
+    *   **Modules Used**:
+        *   `scripts.agents.image_insight_agent.ImageInsightAgent`: For enriching chunks with image summaries.
+        *   `scripts.core.project_manager.ProjectManager`: For project context.
+
 ## Integration with the Project
 
 The `app` folder serves as the user-facing layer of the project. It orchestrates calls to various managers and utilities within the `scripts` directory (e.g., `IngestionManager`, `UnifiedEmbedder`, `RetrievalManager`, `ProjectManager`). This separation allows for a clean distinction between the CLI definition and the underlying implementation of core functionalities.
