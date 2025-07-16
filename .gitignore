@@ -111,5 +111,4 @@ archived/
 ###############################################################################
 #  End                                                                        #
 ###############################################################################
-tests/images_completion/Image_Description_Scores.csv
-tests/images_completion/daily_costs_by_line_item.csv
+tests/*.csv
