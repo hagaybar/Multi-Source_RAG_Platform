@@ -1,61 +1,37 @@
-# Scripts/Chunking Folder
+# Chunking Scripts
 
-The `scripts/chunking` folder contains Python modules and scripts dedicated to splitting documents into smaller, manageable chunks. This is a crucial step in preparing data for Retrieval Augmented Generation (RAG) systems, as it allows for more focused and efficient processing, embedding, and retrieval of information.
-
-The folder includes different versions or approaches to chunking, primarily distinguished as "v2" and "v3".
+This directory contains the scripts responsible for splitting documents into smaller chunks. This is a crucial step in the ingestion process, as it prepares the data for embedding and retrieval.
 
 ## Files
 
-- `__init__.py`: An empty file that marks the `scripts/chunking` directory as a Python package.
+*   `chunker_v3.py`: This is the main chunking script. It takes a document's text and metadata as input and returns a list of `Chunk` objects. The script uses different chunking strategies based on the `doc_type` specified in the metadata.
 
-- **`models.py`**:
-    - Defines a `Chunk` dataclass with the following attributes:
-        - `text`: The actual text content of the chunk.
-        - `meta`: A dictionary to store metadata associated with the chunk (e.g., source document, page number).
-        - `token_count`: The number of tokens in the chunk.
-    - This `Chunk` dataclass is primarily utilized by `chunker_v3.py`.
+*   `models.py`: This script defines the data models used in the chunking process:
+    *   `Chunk`: Represents a single chunk of text. It includes the chunk's text, metadata, token count, and a unique ID.
+    *   `Doc`: Represents a document, which is a collection of chunks.
 
-- **`chunker_v2.py`**:
-    - Defines an older `Chunk` dataclass (distinct from the one in `models.py`).
-    - Implements a `BaseChunker` class responsible for chunking documents.
-    - This chunker relies on chunking rules defined and loaded by `rules.py`.
-    - It seems to primarily support a "by_slide" chunking strategy, suggesting a focus on presentation-like documents.
+*   `rules_v3.py`: This script is responsible for loading the chunking rules from the `configs/chunk_rules.yaml` file. These rules determine how a document is chunked based on its type. The rules specify the chunking strategy (e.g., by paragraph, by slide), the minimum and maximum token size for a chunk, and the overlap between chunks.
 
-- **`rules.py`**:
-    - Defines a `ChunkRule` dataclass with attributes such as:
-        - `split_strategy`: The method to use for splitting.
-        - `token_bounds`: Likely defining target token ranges for chunks.
-        - `overlap`: Specifies the amount of overlap between consecutive chunks.
-        - `notes`: Additional information or comments about the rule.
-        - `min_chunk_size`: The minimum desired size for a chunk.
-    - Contains functions to load these chunking rules from the `configs/chunk_rules.yaml` file. This version is associated with `chunker_v2.py`.
+## How it Works
 
-- **`chunker_v3.py`**:
-    - Implements a core `split` function that orchestrates the chunking process based on rules from `rules_v3.py`.
-    - Supports a variety of chunking strategies, including:
-        - `"by_paragraph"`
-        - `"by_slide"`
-        - `"split_on_sheets"` (likely for spreadsheets)
-        - `"blank_line"`
-        - `"split_on_rows"` (likely for tabular data)
-        - `"by_email_block"`
-    - Utilizes the `spacy` library for more granular sentence splitting, particularly for email content.
-    - Includes logic for merging smaller chunks to meet size requirements and can introduce overlaps between chunks.
-    - Uses the `Chunk` dataclass defined in `models.py`.
+1.  The `chunker_v3.py` script is called with the text of a document and its metadata.
+2.  The script retrieves the appropriate chunking rule from `rules_v3.py` based on the `doc_type` in the metadata.
+3.  The text is split into smaller pieces based on the strategy defined in the rule (e.g., splitting by paragraph, by slide, etc.).
+4.  The smaller pieces are then merged into chunks that respect the `min_tokens` and `max_tokens` limits defined in the rule, with the specified `overlap`.
+5.  Each chunk is returned as a `Chunk` object, as defined in `models.py`.
 
-- **`rules_v3.py`**:
-    - Defines a different `ChunkRule` dataclass compared to `rules.py`, with attributes:
-        - `strategy`: The chunking strategy to apply.
-        - `min_tokens`: The minimum number of tokens a chunk should have.
-        - `max_tokens`: The maximum number of tokens a chunk can have.
-        - `overlap`: The number of tokens to overlap between adjacent chunks.
-    - Provides its own functions to load these rules from the `configs/chunk_rules.yaml` file.
-    - Implements stricter validation for the loaded rules compared to `rules.py`. This version is associated with `chunker_v3.py`.
+## Usage
 
-## Versions and Approaches
+To use the chunker, you need to import the `split` function from `chunker_v3.py` and call it with the document text and metadata. The `doc_type` in the metadata is essential for selecting the correct chunking strategy.
 
-The presence of `chunker_v2.py`/`rules.py` and `chunker_v3.py`/`rules_v3.py` suggests an evolution in the chunking methodology:
-- **v2 (`chunker_v2.py`, `rules.py`)**: Represents an older approach, possibly with a more limited set of strategies and a different rule structure.
-- **v3 (`chunker_v3.py`, `rules_v3.py`, `models.py`)**: Represents a newer, more flexible approach with support for diverse strategies, more sophisticated rule definitions (including stricter validation), and specific handling for different content types (e.g., using `spacy` for emails).
+```python
+from scripts.chunking.chunker_v3 import split
 
-It's important to understand which version is being used in different parts of the project, as their behaviors and rule configurations differ.
+text = "This is the first paragraph.\\n\\nThis is the second paragraph."
+meta = {"doc_type": "default", "doc_id": "123"}
+
+chunks = split(text, meta)
+
+for chunk in chunks:
+    print(chunk)
+```

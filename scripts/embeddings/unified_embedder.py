@@ -102,22 +102,66 @@ class UnifiedEmbedder:
         print(f"DEBUG: Loaded {len(chunks)} chunks from file")
         self.run(chunks)
 
+    # def run_from_folder_old(self) -> None:
+    #     print("DEBUG: run_from_folder() called")
+    #     chunk_files = list(self.project.input_dir.glob("chunks_*.tsv"))
+    #     print(f"DEBUG: Found chunk files: {[f.name for f in chunk_files]}")
+        
+    #     if not chunk_files:
+    #         self.logger.warning("No chunks_*.tsv files found.")
+    #         print("DEBUG: No chunk files found - returning")
+    #         return
+
+    #     for path in chunk_files:
+    #         print(f"DEBUG: Processing chunk file: {path.name}")
+    #         self.logger.info(f"Embedding chunks from: {path.name}")
+    #         chunks = load_chunks(path)
+    #         print(f"DEBUG: Loaded {len(chunks)} chunks from {path.name}")
+    #         self.run(chunks)
+
+
+
     def run_from_folder(self) -> None:
         print("DEBUG: run_from_folder() called")
-        chunk_files = list(self.project.input_dir.glob("chunks_*.tsv"))
-        print(f"DEBUG: Found chunk files: {[f.name for f in chunk_files]}")
-        
+
+        image_enrichment = self.config.get("embedding", {}).get("image_enrichment", False)
+        print(f"DEBUG: image_enrichment = {image_enrichment}")
+
+        base_dir = self.project.input_dir
+        enriched_dir = base_dir / "enriched"
+
+        chunk_files = list(base_dir.glob("chunks_*.tsv"))
+        print(f"DEBUG: Found base chunk files: {[f.name for f in chunk_files]}")
+
         if not chunk_files:
-            self.logger.warning("No chunks_*.tsv files found.")
-            print("DEBUG: No chunk files found - returning")
+            self.logger.warning("No chunks_*.tsv files found in input folder.")
+            print("DEBUG: No base chunk files found - returning")
             return
 
-        for path in chunk_files:
-            print(f"DEBUG: Processing chunk file: {path.name}")
-            self.logger.info(f"Embedding chunks from: {path.name}")
-            chunks = load_chunks(path)
-            print(f"DEBUG: Loaded {len(chunks)} chunks from {path.name}")
+        for base_chunk_path in chunk_files:
+            doc_type = base_chunk_path.stem.split("_", 1)[-1]
+            print(f"\nDEBUG: Detected doc_type: {doc_type}")
+
+            if image_enrichment:
+                enriched_chunk_path = enriched_dir / f"chunks_{doc_type}.tsv"
+                if enriched_chunk_path.exists():
+                    print(f"DEBUG: Using enriched chunks for doc_type '{doc_type}': {enriched_chunk_path}")
+                    chunk_path = enriched_chunk_path
+                else:
+                    self.logger.warning(f"Enrichment enabled, but enriched file not found: {enriched_chunk_path}")
+                    print(f"WARNING: Enrichment enabled, but no enriched file for doc_type '{doc_type}'")
+                    chunk_path = base_chunk_path
+            else:
+                chunk_path = base_chunk_path
+
+            print(f"DEBUG: Loading chunks from: {chunk_path.name}")
+            self.logger.info(f"Embedding chunks from: {chunk_path.name}")
+            chunks = load_chunks(chunk_path)
+            print(f"DEBUG: Loaded {len(chunks)} chunks from {chunk_path.name}")
             self.run(chunks)
+
+
+
 
     def run(self, chunks: List[Chunk]) -> None:
         print("\n" + "=" * 80)
@@ -192,6 +236,12 @@ class UnifiedEmbedder:
             self.logger.info("No new chunks to embed.")
             print("DEBUG: No new chunks to embed - returning")
             return
+        
+                # Inject image_summary into chunk.text
+        for chunk in new_chunks:
+            image_summary = chunk.meta.get("image_summary")
+            if image_summary:
+                chunk.text += f"\n\n[Image Insight]: {image_summary}"
 
         texts = [c.text for c in new_chunks]
         vectors = []

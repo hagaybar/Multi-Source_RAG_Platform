@@ -24,7 +24,7 @@ paths:
     assert pm.output_dir.exists()
     assert pm.logs_dir.exists()
     assert pm.get_faiss_path("pdf").name == "pdf.faiss"
-    assert "demo_project" in pm.config.get("project.name")
+    assert pm.config["project"]["name"] == "demo_project"
     print(f"Temp project created at: {tmp_path}")
 
 

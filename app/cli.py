@@ -1,9 +1,15 @@
 # Workaround for OpenMP runtime conflict on Windows (libomp vs. libiomp)
 # See: https://github.com/pytorch/pytorch/issues/37377 and https://openmp.llvm.org
+import sys
+import pathlib
+
+# Ensure the root directory (where pyproject.toml lives) is on sys.path
+ROOT = pathlib.Path(__file__).resolve().parents[1]
+sys.path.append(str(ROOT))
+
 import os
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
-import pathlib
 from shutil import copy
 import copy as copy_module
 import logging # Added for ask command
@@ -384,6 +390,66 @@ def config(project_dir: Path) -> None:
             use_async_batch = embedding_config.get('use_async_batch', 'NOT_FOUND')
             cli_logger.info(f"use_async_batch: {use_async_batch} (type: {type(use_async_batch)})")
             print(f"use_async_batch: {use_async_batch} (type: {type(use_async_batch)})")
+
+
+@app.command()
+def enrich_images(
+    project_path: Path = typer.Argument(..., help="Path to the project folder."),
+    doc_type: str = typer.Option("pptx", help="Document type to enrich (e.g., pptx, pdf, docx)"),
+    overwrite: bool = typer.Option(False, help="Overwrite original TSV instead of saving to /enriched")
+):
+    """
+    Enrich chunks with image summaries using the ImageInsightAgent.
+    """
+    from scripts.agents.image_insight_agent import ImageInsightAgent
+    from scripts.chunking.models import Chunk
+    import csv
+    import json
+
+    project = ProjectManager(project_path)
+    agent = ImageInsightAgent(project)
+
+    input_tsv = project_path / "input" / f"chunks_{doc_type}.tsv"
+    output_dir = (project_path / "input" / "enriched") if not overwrite else (project_path / "input")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_tsv = output_dir / f"chunks_{doc_type}.tsv"
+
+    enriched_chunks: list[Chunk] = []
+
+    with open(input_tsv, encoding="utf-8") as f:
+        reader = csv.reader(f, delimiter="\t")
+        header = next(reader)
+        for row in reader:
+            if len(row) < 5:
+                continue
+            meta = json.loads(row[4])
+            chunk = Chunk(
+                id=row[0],
+                doc_id=row[1],
+                text=row[2],
+                token_count=int(row[3]),
+                meta=meta
+            )
+
+            # Run only if image_path exists
+            result = agent.run(chunk, project)
+            enriched_chunks.extend(result if isinstance(result, list) else [result])
+
+    # Write to output
+    with open(output_tsv, "w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f, delimiter="\t")
+        writer.writerow(['chunk_id', 'doc_id', 'text', 'token_count', 'meta_json'])
+        for chunk in enriched_chunks:
+            writer.writerow([
+                chunk.id,
+                chunk.doc_id,
+                chunk.text,
+                chunk.token_count,
+                json.dumps(chunk.meta)
+            ])
+
+    print(f"✅ Enriched {len(enriched_chunks)} chunks. Output written to: {output_tsv}")
+
 
 
 if __name__ == "__main__":

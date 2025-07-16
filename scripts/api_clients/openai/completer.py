@@ -92,6 +92,66 @@ class OpenAICompleter:
             logger.error(f"An unexpected error occurred while getting completion via LiteLLM: {e}")
             return None
 
+    def get_multimodal_completion(
+        self,
+        prompt: str,
+        image_b64: str,
+        model_name: str | None = None,
+        temperature: float = 0.7,
+        max_tokens: int = 500,
+    ) -> str | None:
+        """Sends a multimodal prompt (text + image) to the model via LiteLLM."""
+
+        current_model = model_name or self.model_name
+        logger.info(
+            f"Requesting multimodal completion from LiteLLM for model: {current_model}"
+        )
+
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": prompt},
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": f"data:image/png;base64,{image_b64}"},
+                    },
+                ],
+            }
+        ]
+
+        try:
+            response = litellm.completion(
+                model=current_model,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                api_key=os.getenv("OPEN_AI"),
+            )
+
+            if (
+                response.choices
+                and response.choices[0].message
+                and response.choices[0].message.content
+            ):
+                content = response.choices[0].message.content
+                logger.info(
+                    f"Multimodal completion received successfully via LiteLLM. Length: {len(content)} chars."
+                )
+                return content
+            logger.warning(
+                "No completion content received from LiteLLM or content is empty."
+            )
+            return None
+        except litellm.exceptions.APIError as e:
+            logger.error(f"LiteLLM API error: {e}")
+            return None
+        except Exception as e:
+            logger.error(
+                f"An unexpected error occurred while getting multimodal completion via LiteLLM: {e}"
+            )
+            return None
+
 if __name__ == '__main__':
     # Example Usage (requires OPEN_AI environment variable to be set)
     logging.basicConfig(level=logging.INFO)

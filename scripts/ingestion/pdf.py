@@ -1,71 +1,103 @@
 from pathlib import Path
+from typing import List, Tuple
+
 import pdfplumber
 from pdfminer.pdfdocument import PDFPasswordIncorrect
 from pdfminer.pdfparser import PDFSyntaxError
-from pdfplumber.utils.exceptions import PdfminerException # Corrected import
-from scripts.ingestion.models import UnsupportedFileError # RawDoc is not directly returned
-# No hashlib needed as UID is not part of RawDoc
+from pdfplumber.utils.exceptions import PdfminerException
+from scripts.ingestion.models import UnsupportedFileError
 
-def load_pdf(path: str | Path) -> tuple[str, dict]: # Corrected return type
+from scripts.utils.image_utils import (
+    infer_project_root,
+    ensure_image_cache_dir,
+    save_image_pillow,
+    generate_image_filename
+)
+from PIL import Image
+
+def load_pdf(path: str | Path) -> List[Tuple[str, dict]]:
     if not isinstance(path, Path):
         path = Path(path)
 
     try:
-        # Attempt to open the PDF. This can raise FileNotFoundError or PdfminerException (wrapping others).
         with pdfplumber.open(path) as pdf:
-            # These operations might raise PDFPasswordIncorrect or PDFSyntaxError directly,
-            # or other pdfminer errors if not caught by pdfplumber.open's wrapper.
-            _ = len(pdf.pages)
-            _ = pdf.metadata
-
-            if not pdf.pages: # Check if there are any pages
+            if not pdf.pages:
                 raise UnsupportedFileError(f"No pages found in PDF: {path}")
 
-            page_texts = []
-            for page in pdf.pages:
-                text = page.extract_text()
-                if text: # Only append if text was extracted
-                    page_texts.append(text.strip()) # Also strip whitespace from individual page texts
+            project_root = infer_project_root(path)
+            image_dir = ensure_image_cache_dir(project_root)
+            doc_id = str(path)
+            file_stem = path.stem
 
-            if not page_texts: # No text extracted from any page
-                raise UnsupportedFileError(f"No extractable text found in PDF: {path}")
-
-            full_text = "\n\n".join(page_texts)
-
-            # pdfplumber's metadata keys can be 'Title', 'Author', 'CreationDate', 'ModDate'
-            # We use .get() to gracefully handle missing keys, returning None.
-            # The dates are typically strings and are stored as such.
-            metadata = {
-                "source_path": str(path.resolve()), # Store absolute path as string
+            base_doc_meta = {
+                "source_path": str(path.resolve()),
+                "doc_id": doc_id,
+                "source_filepath": str(path),
                 "title": pdf.metadata.get("Title"),
                 "author": pdf.metadata.get("Author"),
-                "created": pdf.metadata.get("CreationDate"), # Store as string or None
-                "modified": pdf.metadata.get("ModDate"),   # Store as string or None
+                "created": pdf.metadata.get("CreationDate"),
+                "modified": pdf.metadata.get("ModDate"),
                 "num_pages": len(pdf.pages),
             }
 
-            return full_text, metadata
+            segments: List[Tuple[str, dict]] = []
 
-    except FileNotFoundError as e: # If the file itself is not found
-        raise # The test expects FileNotFoundError to be propagated.
+            for page_number, page in enumerate(pdf.pages, start=1):
+                text = page.extract_text() or ""
+                base_meta = {
+                    **base_doc_meta,
+                    "doc_type": "pdf",
+                    "page_number": page_number,
+                }
 
-    except PDFPasswordIncorrect as e: # If specifically password protected (potentially from pdf.pages etc.)
-        raise UnsupportedFileError(f"PDF {path} is encrypted and requires a password.") from e
+                images = page.images
+                if images:
+                    for img_idx, img in enumerate(images, start=1):
+                        try:
+                            bbox = (img["x0"], img["top"], img["x1"], img["bottom"])
+                            cropped = page.crop(bbox).to_image(resolution=150)
+                            pil_image = cropped.original
 
-    except PDFSyntaxError as e: # If PDF is corrupted (potentially from pdf.pages etc.)
-        raise UnsupportedFileError(f"Failed to parse PDF {path}, it might be corrupted: {e}") from e
+                            img_name = generate_image_filename(doc_id, page_number, img_idx)
+                            img_path = image_dir / img_name
 
-    except PdfminerException as e: # Catch exceptions wrapped by pdfplumber.open()
-        # Check the wrapped exception type
-        if isinstance(e.args[0], PDFPasswordIncorrect):
-            raise UnsupportedFileError(f"PDF {path} is encrypted and requires a password.") from e
-        elif isinstance(e.args[0], PDFSyntaxError): # This covers general parsing errors
-            raise UnsupportedFileError(f"Failed to parse PDF {path}, it might be corrupted: {e.args[0]}") from e
-        else: # Other errors from pdfminer wrapped by PdfminerException
-            raise UnsupportedFileError(f"An unexpected PDF processing error occurred with {path}: {e.args[0]}") from e
+                            save_image_pillow(pil_image, img_path)
 
-    except UnsupportedFileError: # If we raised it ourselves (e.g. no text, no pages)
+                            meta = base_meta.copy()
+                            meta["image_path"] = str(img_path.relative_to(project_root))
+                            segments.append((text or "[Image-only content]", meta))
+
+                        except Exception as e:
+                            print(f"[WARN] Failed to extract/save image on page {page_number}: {e}")
+                            continue
+                else:
+                    if text:
+                        segments.append((text, base_meta))
+
+            if not segments or all(not seg[0].strip() for seg in segments):
+                raise UnsupportedFileError(f"No extractable text or image found in PDF: {path}")
+
+            return segments
+
+    except FileNotFoundError:
         raise
 
-    except Exception as e: # For any other truly unexpected errors
+    except PDFPasswordIncorrect as e:
+        raise UnsupportedFileError(f"PDF {path} is encrypted and requires a password.") from e
+
+    except PDFSyntaxError as e:
+        raise UnsupportedFileError(f"Failed to parse PDF {path}, it might be corrupted: {e}") from e
+
+    except PdfminerException as e:
+        if isinstance(e.args[0], PDFPasswordIncorrect):
+            raise UnsupportedFileError(f"PDF {path} is encrypted and requires a password.") from e
+        elif isinstance(e.args[0], PDFSyntaxError):
+            raise UnsupportedFileError(f"Failed to parse PDF {path}, it might be corrupted: {e.args[0]}") from e
+        else:
+            raise UnsupportedFileError(f"An unexpected PDF processing error occurred with {path}: {e.args[0]}") from e
+
+    except UnsupportedFileError:
+        raise
+
+    except Exception as e:
         raise UnsupportedFileError(f"An unexpected error occurred while processing PDF {path}: {e}") from e
