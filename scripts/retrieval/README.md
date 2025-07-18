@@ -72,4 +72,4 @@ python -m app.cli retrieve \
 - `agent_router.py`: Agentic coordination of strategies
 - UI support in Streamlit
 - Metadata filters and time-range constraints
-- BM25 and hybrid retrievers
+- BM25 and hybrid retrievers\n*Added note about strategy registry.*

@@ -14,3 +14,4 @@ This folder would house the logic for:
 - **Search/Query Interface**: Low-level functions to perform similarity searches against the index, retrieving the IDs or content of the most relevant chunks for a given query embedding.
 
 While currently containing only the initializer, the scripts in this folder will be responsible for the core retrieval mechanism's backend, enabling the `scripts/retrieval/` components to fetch relevant context for the RAG system.
+\n*File list verified during documentation sweep.*

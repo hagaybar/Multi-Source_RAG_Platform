@@ -56,3 +56,4 @@ The `ProjectManager` is a foundational class used throughout the project to prov
         *   Accessing the project configuration to initialize the appropriate query embedder via the `embedder_registry`.
 
 In essence, `ProjectManager` ensures that all parts of the RAG application operate within a well-defined and consistent project environment. It decouples specific path and configuration logic from the core processing modules, making the system more modular and easier to manage.
+\n*Minor update: clarified ProjectManager role.*

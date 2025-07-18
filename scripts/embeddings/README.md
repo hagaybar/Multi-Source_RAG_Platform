@@ -55,3 +55,4 @@ The embedding system is designed to be modular and configurable, allowing for di
 7.  These FAISS indexes and metadata files are then used by other parts of the application (e.g., a retrieval system) to find relevant information for RAG.
 
 This system provides a robust and flexible way to convert textual content into a searchable vector space, forming a foundational component of the project's information retrieval capabilities.
+\n*Updated overview of embedding utilities.*

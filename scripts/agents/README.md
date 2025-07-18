@@ -1,7 +1,10 @@
 # Agents Folder
 
-The `scripts/agents` folder is intended to house scripts related to AI agents or agentic functionalities within the project.
+The `scripts/agents` folder contains helper classes for agent-like behaviour.
 
-- `__init__.py`: This file is empty and marks the `agents` folder as a Python package.
+- `__init__.py`: Marks the folder as a Python package.
+- `base.py`: Provides a minimal `BaseAgent` class that others can extend.
+- `image_insight_agent.py`: Generates captions for images and enriches chunk metadata.
 
-While currently sparse, this folder would be the place to develop and store modules that enable more autonomous or intelligent behaviors within the RAG system, such as agents that can perform multi-step reasoning or interact with external tools.
+These modules are used by the CLI to optionally add additional context during retrieval or indexing stages.
+\n*Updated module list for clarity.*

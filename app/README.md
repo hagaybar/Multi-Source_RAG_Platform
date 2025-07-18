@@ -87,3 +87,4 @@ The `cli.py` script exposes the following commands:
 ## Integration with the Project
 
 The `app` folder serves as the user-facing layer of the project. It orchestrates calls to various managers and utilities within the `scripts` directory (e.g., `IngestionManager`, `UnifiedEmbedder`, `RetrievalManager`, `ProjectManager`). This separation allows for a clean distinction between the CLI definition and the underlying implementation of core functionalities.
+\n*This README now lists the available CLI commands for clarity.*

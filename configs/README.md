@@ -12,3 +12,4 @@ The `configs` folder is used to store configuration files for the project.
 - `chunk_rules_old.yaml`: This YAML file contains older or deprecated chunking rules.
 
 The `chunk_rules.yaml` file is crucial for the document processing pipeline, as it allows for customized chunking behavior based on file type, ensuring that the content is divided into meaningful segments for further processing (e.g., embedding and retrieval).
+\n*Configuration examples are kept here for easy reference.*

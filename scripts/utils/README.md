@@ -12,3 +12,4 @@ The `scripts/utils` directory provides helper modules used throughout the RAG pl
 - `msg2email.py` – converts Outlook `.msg` files into standard `.eml` format.
 
 These helpers support higher‑level modules like the ingestion, embedding and retrieval components.
+\n*Minor wording update during documentation pass.*
