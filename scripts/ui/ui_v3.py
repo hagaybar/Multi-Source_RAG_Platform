@@ -1,7 +1,9 @@
 import streamlit as st
 import os
 from pathlib import Path
+import yaml
 from scripts.interface.ask_interface import run_ask
+from scripts.core.project_manager import ProjectManager
 
 st.set_page_config(page_title="RAG-GP UI", layout="wide")
 
@@ -21,9 +23,49 @@ section = st.sidebar.radio(
 # Section: Projects
 if section == "Projects":
     st.header("🔧 Projects")
-    st.info("Here you will be able to create or configure a project.")
-    st.subheader("Project Configuration")
-    st.write("(Form for editing YAML config, selecting paths, etc. goes here.)")
+    base_path = Path("data/projects")
+    base_path.mkdir(parents=True, exist_ok=True)
+
+    st.subheader("Create New Project")
+    new_name = st.text_input("Project Name")
+    if st.button("Create Project") and new_name:
+        project_dir = base_path / new_name
+        if project_dir.exists():
+            st.error("Project already exists.")
+        else:
+            project_dir.mkdir(parents=True)
+            config = {
+                "project": {"name": new_name},
+                "paths": {
+                    "input_dir": "input",
+                    "output_dir": "output",
+                    "logs_dir": "output/logs",
+                    "faiss_dir": "output/faiss",
+                    "metadata_dir": "output/metadata",
+                },
+            }
+            (project_dir / "config.yml").write_text(yaml.dump(config), encoding="utf-8")
+            ProjectManager(project_dir)
+            st.success(f"Created project '{new_name}'")
+
+    st.markdown("---")
+    projects = [p.name for p in base_path.iterdir() if p.is_dir()]
+    if projects:
+        selected = st.selectbox("Select Project", projects)
+        if selected:
+            pm = ProjectManager(base_path / selected)
+            st.subheader("Configuration")
+            st.json(pm.config)
+
+            st.subheader("Input Files")
+            files = [str(p.relative_to(pm.input_dir)) for p in pm.input_dir.glob("**/*") if p.is_file()]
+            if files:
+                for f in files:
+                    st.write(f"- {f}")
+            else:
+                st.write("(No input files found)")
+    else:
+        st.info("No projects found. Use the form above to create one.")
 
 # Section: Data
 elif section == "Data":
