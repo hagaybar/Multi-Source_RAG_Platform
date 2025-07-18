@@ -15,6 +15,7 @@ The folder is organized into several subdirectories, each responsible for a spec
     - Houses clients for interacting with external APIs, such as OpenAI.
     - **`openai/`**:
         - `batch_embedder.py`: Implements `BatchEmbedder` for submitting large embedding jobs to OpenAI's asynchronous `/v1/batches` API. It handles JSONL file preparation, batch submission, status polling, result downloading, and parsing.
+        - `completer.py`: Lightweight wrapper around LiteLLM for chat/completion requests.
 
 - **`chunking/`**:
     - Contains modules for splitting documents into smaller, manageable chunks. This is a crucial step for RAG.
@@ -67,11 +68,19 @@ The folder is organized into several subdirectories, each responsible for a spec
     - Intended for scripts related to constructing prompts for the language model in the RAG system.
     - `__init__.py`: Marks the `prompting` folder as a Python package.
 
+- **`interface/`**:
+    - Helper API that glues retrieval, prompting and completion.
+    - `ask_interface.py` exposes a `run_ask` function used by the CLI or UI.
+
+- **`ui/`**:
+    - Experimental Streamlit front ends (`ui.py`, `ui_v2.py`, `ui_v3.py`).
+
 - **`retrieval/`**:
     - Contains scripts for retrieving relevant chunks from the index based on a query.
     - `__init__.py`: Marks the `retrieval` folder as a Python package.
     - `base.py`: Defines `BaseRetriever` abstract class and `FaissRetriever` for searching in a FAISS index and its associated metadata. It uses a shared embedder (from `scripts.api_clients.embedder`, though this path might need checking as `get_embedder` is in `scripts.embeddings.embedder_registry`) to encode queries.
     - `retrieval_manager.py`: Implements `RetrievalManager` which loads retrievers (currently `FaissRetriever`) for different document types and applies retrieval strategies (defined in `scripts.retrieval.strategies`) like "late_fusion".
+    - `strategies/`: Collection of retrieval strategies registered via `strategy_registry.py`.
     - For more details, see `scripts/retrieval/README_retrieval.md`.
 
 - **`utils/`**:
@@ -85,3 +94,4 @@ The folder is organized into several subdirectories, each responsible for a spec
     - `msg2email.py`: `msg_to_eml` function to convert Outlook `.msg` files to `.eml` format using `extract_msg`.
 
 These scripts work together to form a pipeline: documents are ingested, chunked, converted to embeddings, indexed, and then retrieved to augment prompts for a language model.
+\n*Documentation updated to include interface and UI modules.*

@@ -17,3 +17,4 @@ This directory holds the loaders and helper classes that turn raw files into `Ra
 
 ## How it fits together
 `IngestionManager.ingest_path()` is typically called by the CLI or UI to process a directory of source files. The resulting `RawDoc` list is then fed to the chunking engine in `scripts/chunking` for further processing within the RAG workflow.
+\n*README touched up for completeness.*

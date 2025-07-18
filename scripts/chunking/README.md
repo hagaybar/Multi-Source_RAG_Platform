@@ -35,3 +35,4 @@ chunks = split(text, meta)
 for chunk in chunks:
     print(chunk)
 ```
+\n*README refreshed to mention current chunking modules.*
