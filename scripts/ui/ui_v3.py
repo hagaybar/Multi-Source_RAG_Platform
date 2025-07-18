@@ -18,12 +18,49 @@ section = st.sidebar.radio(
     ]
 )
 
+from scripts.ui.ui_project_manager import render_project_creation, render_config_editor, render_raw_data_upload, render_raw_file_viewer
+
 # Section: Projects
 if section == "Projects":
     st.header("🔧 Projects")
     st.info("Here you will be able to create or configure a project.")
-    st.subheader("Project Configuration")
-    st.write("(Form for editing YAML config, selecting paths, etc. goes here.)")
+
+    base_path = Path("data/projects")
+    if not base_path.exists():
+        base_path.mkdir(parents=True)
+
+    all_projects = [p.name for p in base_path.iterdir() if p.is_dir()]
+
+    if "selected_project" not in st.session_state:
+        st.session_state.selected_project = all_projects[0] if all_projects else None
+
+    def on_project_change():
+        st.session_state.selected_project = st.session_state.project_selector
+
+    if not all_projects:
+        st.warning("No projects found. Please create a new project to begin.")
+        render_project_creation()
+    else:
+        selected_project_name = st.selectbox(
+            "Select a Project",
+            all_projects,
+            key="project_selector",
+            on_change=on_project_change,
+            index=all_projects.index(st.session_state.selected_project) if st.session_state.selected_project in all_projects else 0
+        )
+
+        if selected_project_name:
+            project_path = base_path / selected_project_name
+            st.subheader(f"Project: {selected_project_name}")
+
+            render_config_editor(project_path)
+            st.markdown("---")
+            render_raw_data_upload(project_path)
+            st.markdown("---")
+            render_raw_file_viewer(project_path)
+
+        st.markdown("---")
+        render_project_creation()
 
 # Section: Data
 elif section == "Data":
