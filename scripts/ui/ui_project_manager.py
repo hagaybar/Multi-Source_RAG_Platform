@@ -19,7 +19,7 @@ def render_project_creation():
         project_description = st.text_area("Project Description (Optional)")
         language = st.selectbox("Language", ["en", "he", "multi"])
         image_enrichment = st.checkbox("Enable Image Enrichment")
-        embedding_model = st.selectbox("Embedding Model", ["text-embedding-ada-002", "bge-large-en-v1.5"])
+        embedding_model = st.selectbox("Embedding Model", ["text-embedding-3-large","text-embedding-ada-002", "bge-large-en-v1.5"])
 
         submitted = st.form_submit_button("Create Project")
         if submitted:
@@ -37,7 +37,7 @@ def render_project_creation():
                         projects_base_dir=projects_base_dir,
                     )
                     st.success(f"Project '{project_name}' created successfully!")
-                    st.rerun()
+                    st.experimental_rerun()
                 except FileExistsError as e:
                     st.error(e)
                 except Exception as e:
