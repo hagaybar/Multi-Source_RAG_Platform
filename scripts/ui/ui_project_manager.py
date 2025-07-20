@@ -1,5 +1,7 @@
 import streamlit as st
 from pathlib import Path
+import os
+
 
 from scripts.core.project_manager import ProjectManager
 
@@ -126,8 +128,6 @@ def render_raw_data_upload(project_path: Path):
                     st.error(f"Error saving {uploaded_file.name}: {e}")
             else:
                 st.warning(f"Unsupported file type: {uploaded_file.name}")
-
-import os
 
 def render_raw_file_viewer(project_path: Path):
     """
