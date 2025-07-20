@@ -1,5 +1,6 @@
-import streamlit as st
 from pathlib import Path
+import yaml
+import streamlit as st
 import os
 
 
@@ -167,3 +168,74 @@ def render_raw_file_viewer(project_path: Path):
                     st.write(f.name)
                 with col2:
                     st.write(f"{f.stat().st_size / 1024:.2f} KB")
+
+def render_config_editor_v2(project_path: Path):
+    """
+    Renders a safer and more user-friendly editor for project config.yml,
+    with both a structured form and an optional raw YAML editor.
+
+    Args:
+        project_path: The path to the project's root directory.
+    """
+    st.subheader("Configuration Editor")
+
+    config_path = project_path / "config.yml"
+
+    # Load config
+    try:
+        with config_path.open("r", encoding="utf-8") as f:
+            config_data = yaml.safe_load(f)
+    except FileNotFoundError:
+        st.error("config.yml not found for this project.")
+        return
+    except yaml.YAMLError as e:
+        st.error(f"Invalid YAML: {e}")
+        return
+    except Exception as e:
+        st.error(f"Unexpected error reading config: {e}")
+        return
+
+    # ---- Editable Form Fields ----
+    with st.form("config_form"):
+        col1, col2 = st.columns(2)
+
+        with col1:
+            project_name = st.text_input("Project Name", value=config_data.get("name", ""))
+            language = st.selectbox("Language", ["en", "he", "multi"], index=["en", "he", "multi"].index(config_data.get("language", "en")))
+
+        with col2:
+            embedding_model = st.selectbox(
+                "Embedding Model",
+                ["text-embedding-3-large", "text-embedding-ada-002", "bge-large-en-v1.5"],
+                index=["text-embedding-3-large", "text-embedding-ada-002", "bge-large-en-v1.5"].index(config_data.get("embedding_model", "text-embedding-3-large"))
+            )
+            image_enrichment = st.checkbox("Enable Image Enrichment", value=config_data.get("image_enrichment", False))
+
+        submitted = st.form_submit_button("Save Config")
+        if submitted:
+            updated_config = {
+                "name": project_name,
+                "language": language,
+                "embedding_model": embedding_model,
+                "image_enrichment": image_enrichment
+            }
+
+            try:
+                with config_path.open("w", encoding="utf-8") as f:
+                    yaml.safe_dump(updated_config, f)
+                st.success("Configuration saved successfully!")
+            except Exception as e:
+                st.error(f"Failed to save config: {e}")
+
+    # ---- Optional Raw YAML Editor ----
+    with st.expander("🛠 Advanced: Edit Raw YAML"):
+        raw_yaml = yaml.safe_dump(config_data, sort_keys=False)
+        edited_text = st.text_area("Raw YAML", value=raw_yaml, height=300, key=f"raw_yaml_{project_path.name}")
+        if st.button("Save Raw YAML", key=f"save_raw_{project_path.name}"):
+            try:
+                parsed = yaml.safe_load(edited_text)
+                with config_path.open("w", encoding="utf-8") as f:
+                    f.write(edited_text)
+                st.success("Raw YAML saved successfully!")
+            except yaml.YAMLError as e:
+                st.error(f"Invalid YAML: {e}")
