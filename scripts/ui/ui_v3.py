@@ -18,7 +18,7 @@ section = st.sidebar.radio(
     ]
 )
 
-from scripts.ui.ui_project_manager import render_project_creation, render_config_editor, render_raw_data_upload, render_raw_file_viewer
+from scripts.ui.ui_project_manager import render_project_creation, render_config_editor, render_config_editor_v2, render_raw_data_upload, render_raw_file_viewer
 
 # Section: Projects
 if section == "Projects":
@@ -53,7 +53,7 @@ if section == "Projects":
             project_path = base_path / selected_project_name
             st.subheader(f"Project: {selected_project_name}")
 
-            render_config_editor(project_path)
+            render_config_editor_v2(project_path) # replace with render_config_editor if you want the old version
             st.markdown("---")
             render_raw_data_upload(project_path)
             st.markdown("---")

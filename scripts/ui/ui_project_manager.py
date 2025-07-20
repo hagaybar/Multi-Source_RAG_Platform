@@ -169,73 +169,109 @@ def render_raw_file_viewer(project_path: Path):
                 with col2:
                     st.write(f"{f.stat().st_size / 1024:.2f} KB")
 
+from pathlib import Path
+import yaml
+import streamlit as st
+
 def render_config_editor_v2(project_path: Path):
     """
-    Renders a safer and more user-friendly editor for project config.yml,
-    with both a structured form and an optional raw YAML editor.
-
-    Args:
-        project_path: The path to the project's root directory.
+    Enhanced config editor with structured fields, tooltips, and YAML fallback.
     """
-    st.subheader("Configuration Editor")
 
+    st.subheader("Configuration Editor")
     config_path = project_path / "config.yml"
 
-    # Load config
+    # Load config safely
     try:
         with config_path.open("r", encoding="utf-8") as f:
-            config_data = yaml.safe_load(f)
+            config_data = yaml.safe_load(f) or {}
     except FileNotFoundError:
         st.error("config.yml not found for this project.")
         return
     except yaml.YAMLError as e:
-        st.error(f"Invalid YAML: {e}")
-        return
-    except Exception as e:
-        st.error(f"Unexpected error reading config: {e}")
+        st.error(f"Invalid YAML in config: {e}")
         return
 
-    # ---- Editable Form Fields ----
+    st.markdown("Use this form to review or edit project settings. These control ingestion, embedding, and enrichment behavior.")
+
     with st.form("config_form"):
-        col1, col2 = st.columns(2)
+        st.markdown("### 🧾 Project Info")
+        name = st.text_input("Project Name", value=config_data.get("name", project_path.name), disabled=True)
+        description = st.text_area("Description", value=config_data.get("description", ""), help="Optional. Short notes about the project purpose or content.")
 
-        with col1:
-            project_name = st.text_input("Project Name", value=config_data.get("name", ""))
-            language = st.selectbox("Language", ["en", "he", "multi"], index=["en", "he", "multi"].index(config_data.get("language", "en")))
+        st.markdown("### 🌍 Language & Embedding")
+        language = st.selectbox(
+            "Language",
+            options=["en", "he", "multi"],
+            index=["en", "he", "multi"].index(config_data.get("language", "en")),
+            help="Language of documents. Affects chunking and translation behavior."
+        )
 
-        with col2:
-            embedding_model = st.selectbox(
-                "Embedding Model",
-                ["text-embedding-3-large", "text-embedding-ada-002", "bge-large-en-v1.5"],
-                index=["text-embedding-3-large", "text-embedding-ada-002", "bge-large-en-v1.5"].index(config_data.get("embedding_model", "text-embedding-3-large"))
-            )
-            image_enrichment = st.checkbox("Enable Image Enrichment", value=config_data.get("image_enrichment", False))
+        embedding_model = st.selectbox(
+            "Embedding Model",
+            options=["text-embedding-3-large", "text-embedding-ada-002", "bge-large-en-v1.5"],
+            index=["text-embedding-3-large", "text-embedding-ada-002", "bge-large-en-v1.5"].index(
+                config_data.get("embedding_model", "text-embedding-3-large")
+            ),
+            help="Model used to convert text into embeddings for search. Local models avoid API cost."
+        )
+
+        st.markdown("### ⚙️ Features & Flags")
+        image_enrichment = st.checkbox(
+            "Enable Image Enrichment",
+            value=config_data.get("image_enrichment", False),
+            help="If enabled, OCR will be extracted from screenshots and included in chunk text."
+        )
+
+        web_ingestion = st.checkbox(
+            "Enable Web Ingestion",
+            value=config_data.get("web_ingestion", False),
+            help="Allows the project to ingest URLs and raw HTML files using readability parsing."
+        )
+
+        default_chunker = st.text_input(
+            "Default Chunker",
+            value=config_data.get("default_chunker", "PlainTextSentences"),
+            help="Fallback chunking strategy (class name or alias). Used when no format-specific rule is set."
+        )
+
+        enable_logging = st.checkbox(
+            "Enable Logging",
+            value=config_data.get("enable_logging", True),
+            help="If checked, detailed logs will be saved during pipeline steps."
+        )
 
         submitted = st.form_submit_button("Save Config")
         if submitted:
-            updated_config = {
-                "name": project_name,
-                "language": language,
-                "embedding_model": embedding_model,
-                "image_enrichment": image_enrichment
-            }
-
             try:
-                with config_path.open("w", encoding="utf-8") as f:
-                    yaml.safe_dump(updated_config, f)
-                st.success("Configuration saved successfully!")
-            except Exception as e:
-                st.error(f"Failed to save config: {e}")
+                updated_config = {
+                    "name": name,
+                    "description": description,
+                    "language": language,
+                    "embedding_model": embedding_model,
+                    "image_enrichment": image_enrichment,
+                    "web_ingestion": web_ingestion,
+                    "default_chunker": default_chunker,
+                    "enable_logging": enable_logging
+                }
 
-    # ---- Optional Raw YAML Editor ----
+                with config_path.open("w", encoding="utf-8") as f:
+                    yaml.safe_dump(updated_config, f, sort_keys=False)
+
+                st.success("✅ Configuration saved successfully!")
+            except Exception as e:
+                st.error(f"Error saving config: {e}")
+
+    # Optional advanced YAML view
     with st.expander("🛠 Advanced: Edit Raw YAML"):
         raw_yaml = yaml.safe_dump(config_data, sort_keys=False)
-        edited_text = st.text_area("Raw YAML", value=raw_yaml, height=300, key=f"raw_yaml_{project_path.name}")
+        edited_yaml = st.text_area("Raw config.yml", value=raw_yaml, height=300, key=f"raw_yaml_{project_path.name}")
+
         if st.button("Save Raw YAML", key=f"save_raw_{project_path.name}"):
             try:
-                parsed = yaml.safe_load(edited_text)
+                parsed_yaml = yaml.safe_load(edited_yaml)
                 with config_path.open("w", encoding="utf-8") as f:
-                    f.write(edited_text)
+                    f.write(edited_yaml)
                 st.success("Raw YAML saved successfully!")
             except yaml.YAMLError as e:
-                st.error(f"Invalid YAML: {e}")
+                st.error(f"Invalid YAML format: {e}")
