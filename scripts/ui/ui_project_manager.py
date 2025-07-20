@@ -37,7 +37,7 @@ def render_project_creation():
                         projects_base_dir=projects_base_dir,
                     )
                     st.success(f"Project '{project_name}' created successfully!")
-                    st.experimental_rerun()
+                    st.rerun()
                 except FileExistsError as e:
                     st.error(e)
                 except Exception as e:

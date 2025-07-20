@@ -69,10 +69,6 @@ class ProjectManager:
                 "name": project_name,
                 "description": project_description,
                 "language": language,
-                "image_enrichment": image_enrichment,
-            },
-            "embedding": {
-                "model": embedding_model,
             },
             "paths": {
                 "input_dir": "input",
@@ -80,6 +76,34 @@ class ProjectManager:
                 "logs_dir": "output/logs",
                 "faiss_dir": "output/faiss",
                 "metadata_dir": "output/metadata",
+            },
+            "embedding": {
+                "skip_duplicates": True,
+                "provider": "litellm",
+                "endpoint": "https://api.openai.com/v1/embeddings",
+                "mode": "batch",
+                "model": embedding_model,
+                "embed_batch_size": 64,
+                "use_async_batch": True,
+                "image_enrichment": image_enrichment,
+            },
+            "llm": {
+                "provider": "openai",
+                "model": "gpt-4o",
+                "temperature": 0.4,
+                "max_tokens": 400,
+                "prompt_strategy": "default",
+            },
+            "agents": {
+                "enable_image_insight": image_enrichment,
+                "image_agent_model": "gpt-4o",
+                "output_mode": "append_to_chunk",
+                "image_prompt": (
+                    "This is a screenshot from a tutorial document.\n\n"
+                    "Surrounding Text:\n{{ context }}\n\n"
+                    "Based on the screenshot and the surrounding text, describe what this image shows, "
+                    "what step it illustrates, and why it is helpful in the tutorial."
+                ),
             },
         }
 
