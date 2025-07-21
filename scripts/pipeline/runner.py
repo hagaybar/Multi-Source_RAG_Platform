@@ -5,6 +5,7 @@ import json
 import csv
 from collections import defaultdict
 import hashlib
+import uuid
 
 # local imports
 from scripts.agents.image_insight_agent import ImageInsightAgent
@@ -431,6 +432,7 @@ class PipelineRunner:
         self.add_step("ingest")
         self.add_step("chunk")
         self.add_step("enrich")
+        self.add_step("index_images")
         self.add_step("embed")
         self.add_step("retrieve", query=query)
         self.add_step("ask", query=query)
