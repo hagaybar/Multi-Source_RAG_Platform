@@ -2,6 +2,7 @@
 # See: https://github.com/pytorch/pytorch/issues/37377 and https://openmp.llvm.org
 import sys
 import pathlib
+import uuid
 
 # Ensure the root directory (where pyproject.toml lives) is on sys.path
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -15,8 +16,7 @@ import copy as copy_module
 import logging # Added for ask command
 
 import typer  # type: ignore
-import json  # Added import
-import csv  # Added import
+import json, csv 
 from collections import defaultdict
 from pathlib import Path
 
@@ -30,7 +30,7 @@ from scripts.core.project_manager import ProjectManager
 from scripts.retrieval.retrieval_manager import RetrievalManager
 from scripts.prompting.prompt_builder import PromptBuilder # Added for ask command
 from scripts.api_clients.openai.completer import OpenAICompleter # Added for ask command
-
+from scripts.agents.image_insight_agent import ImageInsightAgent # Added for index_images command
 app = typer.Typer()
 
 # Setup basic logging for the CLI
@@ -401,10 +401,6 @@ def enrich_images(
     """
     Enrich chunks with image summaries using the ImageInsightAgent.
     """
-    from scripts.agents.image_insight_agent import ImageInsightAgent
-    from scripts.chunking.models import Chunk
-    import csv
-    import json
 
     project = ProjectManager(project_path)
     agent = ImageInsightAgent(project)
@@ -449,6 +445,60 @@ def enrich_images(
             ])
 
     print(f"✅ Enriched {len(enriched_chunks)} chunks. Output written to: {output_tsv}")
+
+
+
+@app.command()
+def index_images(
+    project_path: Path = typer.Argument(..., help="Path to the RAG project directory."),
+    doc_type: str = typer.Option("pptx", help="Document type to read enriched chunks from")
+):
+    """
+    Index enriched image summaries (ImageChunks) into image_index.faiss and image_metadata.jsonl.
+    """
+    import csv
+    import json
+    from scripts.chunking.models import ImageChunk
+    from scripts.core.project_manager import ProjectManager
+    from scripts.embeddings.image_indexer import ImageIndexer
+
+    project = ProjectManager(project_path)
+    indexer = ImageIndexer(project)
+
+    enriched_path = project_path / "input" / "enriched" / f"chunks_{doc_type}.tsv"
+    if not enriched_path.exists():
+        typer.echo(f"❌ Enriched TSV not found: {enriched_path}")
+        raise typer.Exit(1)
+
+    image_chunks: list[ImageChunk] = []
+
+    with open(enriched_path, encoding="utf-8") as f:
+        reader = csv.reader(f, delimiter="\t")
+        header = next(reader)
+        for row in reader:
+            if len(row) < 5:
+                continue
+            meta = json.loads(row[4])
+            summaries = meta.get("image_summaries", [])
+            for s in summaries:
+                image_chunks.append(
+                    ImageChunk(
+                        id=str(uuid.uuid4()),
+                        description=s["description"],
+                        meta={
+                            "image_path": s["image_path"],
+                            "source_chunk_id": row[0],
+                            "doc_type": meta.get("doc_type"),
+                            "source_filepath": meta.get("source_filepath"),
+                            "page_number": meta.get("page_number"),
+                        },
+                    )
+                )
+
+    indexer.run(image_chunks)
+    typer.echo(f"✅ Indexed {len(image_chunks)} image chunks into FAISS and metadata JSONL.")
+
+
 
 
 
