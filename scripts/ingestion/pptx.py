@@ -1,3 +1,4 @@
+from hashlib import sha1
 from pathlib import Path
 from pptx import Presentation
 from pptx.enum.shapes import MSO_SHAPE_TYPE
@@ -6,19 +7,6 @@ import logging
 from scripts.utils.image_utils import get_project_image_dir, infer_project_root, record_image_metadata
 
 logger = logging.getLogger("pptx_ingestor")
-
-
-# def _infer_project_root(file_path: Path) -> Path:
-#     """
-#     Extracts the base project directory from a known data/projects/{project_name}/... path.
-#     Returns: Path to data/projects/{project_name}
-#     """
-#     parts = file_path.resolve().parts
-#     for i in range(len(parts) - 2):
-#         if parts[i] == "data" and parts[i + 1] == "projects":
-#             return Path(*parts[:i + 3])
-#     return file_path.parent
-
 
 class PptxIngestor(AbstractIngestor):
     """
@@ -30,14 +18,15 @@ class PptxIngestor(AbstractIngestor):
             raise UnsupportedFileError("File is not a .pptx file.")
 
         extracted_data = []
-        try:
+        seen_hashes = set()  # Track unique images
 
+        try:
             prs = Presentation(filepath)
             file_path = Path(filepath)
 
             # 🔍 Infer project root and name
             project_root = infer_project_root(file_path)
-            project_name = project_root.name              # ✅ CORRECT
+            project_name = project_root.name
             image_dir = get_project_image_dir(project_name)
 
             logger.info(f"[PPTX] Ingesting file: {file_path}")
@@ -49,16 +38,19 @@ class PptxIngestor(AbstractIngestor):
                 slide_number = i + 1
                 text_on_slide = []
                 image_counter = 0
+                image_paths = []
 
                 for shape in slide.shapes:
-                    logger.debug(f"[PPTX] Slide {slide_number}, Shape type: {shape.shape_type}")
-                    if hasattr(shape, "name"):
-                        logger.debug(f"[PPTX] Shape name: {shape.name}")
-
                     if hasattr(shape, "text") and shape.text:
                         text_on_slide.append(shape.text.strip())
 
                     if shape.shape_type == MSO_SHAPE_TYPE.PICTURE:
+                        img_bytes = shape.image.blob
+                        img_hash = sha1(img_bytes).hexdigest()
+                        if img_hash in seen_hashes:
+                            continue  # Skip duplicate image
+                        seen_hashes.add(img_hash)
+
                         image_counter += 1
                         img_name = f"{file_stem}_slide{slide_number}_img{image_counter}.png"
                         rel_dir = Path("input") / "cache" / "images"
@@ -67,7 +59,7 @@ class PptxIngestor(AbstractIngestor):
 
                         try:
                             with open(out_path, "wb") as f:
-                                f.write(shape.image.blob)
+                                f.write(img_bytes)
                             logger.info(f"[PPTX] Saved image to: {out_path}")
                         except Exception as img_err:
                             logger.warning(f"[PPTX] Failed to save image on slide {slide_number}: {img_err}")
@@ -77,40 +69,24 @@ class PptxIngestor(AbstractIngestor):
                             out_path = out_path.resolve()
                             rel_to_input = out_path.relative_to(project_root / "input")
                             img_rel = str(rel_to_input)
+                            image_paths.append(img_rel)
                         except Exception as e:
                             logger.warning(f"[PPTX] Failed to compute relative image path: {e}")
-                            # img_rel = str(rel_dir / img_name)  # fallback
+                            continue
 
-                        # Track images per slide
-                        slide_meta = {
-                            "slide_number": slide_number,
-                            "type": "slide_content",
-                            "doc_type": "pptx",
-                        }
-                        text_content = "\n".join(text_on_slide).strip()
-                        has_images = False
+                # Emit main slide chunk (text + images)
+                if text_on_slide or image_paths:
+                    slide_meta = {
+                        "slide_number": slide_number,
+                        "type": "slide_content",
+                        "doc_type": "pptx",
+                    }
+                    if image_paths:
+                        slide_meta["image_paths"] = image_paths
 
-                        for shape in slide.shapes:
-                            if shape.shape_type == MSO_SHAPE_TYPE.PICTURE:
-                                image_counter += 1
-                                img_name = f"{file_stem}_slide{slide_number}_img{image_counter}.png"
-                                out_path = image_dir / img_name
+                    text_content = "\n".join(text_on_slide).strip() or "[Image-only slide]"
+                    extracted_data.append((text_content, slide_meta))
 
-                                try:
-                                    with open(out_path, "wb") as f:
-                                        f.write(shape.image.blob)
-
-                                    logger.info(f"[PPTX] Saved image to: {out_path}")
-                                    record_image_metadata(slide_meta, out_path, project_root)
-                                    has_images = True
-
-                                except Exception as img_err:
-                                    logger.warning(f"[PPTX] Failed to save image on slide {slide_number}: {img_err}")
-                                    continue
-
-                        # Emit slide chunk only once
-                        if text_content or has_images:
-                            extracted_data.append((text_content or "[Image-only slide]", slide_meta))
                 # Presenter notes
                 if slide.has_notes_slide and slide.notes_slide.notes_text_frame:
                     notes_text = slide.notes_slide.notes_text_frame.text.strip()
@@ -125,17 +101,6 @@ class PptxIngestor(AbstractIngestor):
                             f"{notes_text}"
                         )
                         extracted_data.append((formatted_notes, notes_meta))
-
-                # Fallback: no image, but text exists
-                if text_on_slide and image_counter == 0:
-                    slide_content = "\n".join(text_on_slide).strip()
-                    if slide_content:
-                        slide_meta = {
-                            "slide_number": slide_number,
-                            "type": "slide_content",
-                            "doc_type": "pptx"
-                        }
-                        extracted_data.append((slide_content, slide_meta))
 
         except Exception as e:
             logger.error(f"[PPTX] Fatal error processing file {filepath}: {e}", exc_info=True)
