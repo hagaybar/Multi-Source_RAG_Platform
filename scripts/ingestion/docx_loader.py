@@ -9,6 +9,8 @@ from docx.oxml.ns import qn
 
 from scripts.utils.image_utils import (
     infer_project_root,
+    record_image_metadata,
+    get_project_image_dir,
     ensure_image_cache_dir,
     save_image_blob,
     generate_image_filename
@@ -26,7 +28,10 @@ def load_docx(path: str | pathlib.Path) -> List[Tuple[str, dict]]:
 
     document = Document(path)
     project_root = infer_project_root(path)
-    image_dir = ensure_image_cache_dir(project_root)
+    project_name = project_root.name
+    image_dir = get_project_image_dir(project_name)
+    print(f"[loader] Writing image to: {image_dir}")  # Should be inside data/projects/{project}/input/cache/images
+    
 
     segments: List[Tuple[str, dict]] = []
     file_stem = path.stem
@@ -43,6 +48,7 @@ def load_docx(path: str | pathlib.Path) -> List[Tuple[str, dict]]:
 
         img_count = 0
         image_found = False
+        meta = base_meta.copy()
 
         for run in paragraph.runs:
             blips = run._element.xpath(".//a:blip")
@@ -60,17 +66,14 @@ def load_docx(path: str | pathlib.Path) -> List[Tuple[str, dict]]:
                 img_path = image_dir / img_name
                 save_image_blob(image_part.blob, img_path)
 
-                meta = base_meta.copy()
-                meta["image_path"] = str(img_path.relative_to(project_root))
-                segments.append((text or "[Image-only content]", meta))
-                img_count += 1
+                record_image_metadata(meta, img_path, project_root)
                 image_found = True
+                img_count += 1
 
-        # If no image, but text exists → add as regular text chunk
-        if not image_found and text:
-            segments.append((text, base_meta))
+        if text or image_found:
+            segments.append((text or "[Image-only content]", meta))
 
-    print(f"[INFO] Extracted {len([s for s in segments if 'image_path' in s[1]])} images from {path.name}")
+    print(f"[INFO] Extracted {sum('image_paths' in s[1] for s in segments)} image-attached chunks from {path.name}")
 
 
     # Tables as additional segments

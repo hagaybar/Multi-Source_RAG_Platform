@@ -9,7 +9,9 @@ from scripts.ingestion.models import UnsupportedFileError
 
 from scripts.utils.image_utils import (
     infer_project_root,
+    get_project_image_dir,
     ensure_image_cache_dir,
+    record_image_metadata,
     save_image_pillow,
     generate_image_filename
 )
@@ -23,9 +25,13 @@ def load_pdf(path: str | Path) -> List[Tuple[str, dict]]:
         with pdfplumber.open(path) as pdf:
             if not pdf.pages:
                 raise UnsupportedFileError(f"No pages found in PDF: {path}")
+            
 
+            # 🔍 Infer project root and name
             project_root = infer_project_root(path)
-            image_dir = ensure_image_cache_dir(project_root)
+            project_name = project_root.name              # ✅ CORRECT
+            image_dir = get_project_image_dir(project_name)
+            print(f"[loader] Writing image to: {image_dir}")  # Should be inside data/projects/{project}/input/cache/images
             doc_id = str(path)
             file_stem = path.stem
 
@@ -50,9 +56,9 @@ def load_pdf(path: str | Path) -> List[Tuple[str, dict]]:
                     "page_number": page_number,
                 }
 
-                images = page.images
-                if images:
-                    for img_idx, img in enumerate(images, start=1):
+                img_paths = []
+                if page.images:
+                    for img_idx, img in enumerate(page.images, start=1):
                         try:
                             bbox = (img["x0"], img["top"], img["x1"], img["bottom"])
                             cropped = page.crop(bbox).to_image(resolution=150)
@@ -63,16 +69,15 @@ def load_pdf(path: str | Path) -> List[Tuple[str, dict]]:
 
                             save_image_pillow(pil_image, img_path)
 
-                            meta = base_meta.copy()
-                            meta["image_path"] = str(img_path.relative_to(project_root))
-                            segments.append((text or "[Image-only content]", meta))
+                            # ✅ Add to image_paths via helper
+                            record_image_metadata(base_meta, img_path, project_root)
 
                         except Exception as e:
-                            print(f"[WARN] Failed to extract/save image on page {page_number}: {e}")
+                            print(f"Warning! [PDF] Failed to extract image on page {page_number}: {e}")
                             continue
-                else:
-                    if text:
-                        segments.append((text, base_meta))
+
+                # ✅ Add chunk once per page, with all images and text
+                segments.append((text or "[Image-only page]", base_meta))
 
             if not segments or all(not seg[0].strip() for seg in segments):
                 raise UnsupportedFileError(f"No extractable text or image found in PDF: {path}")
