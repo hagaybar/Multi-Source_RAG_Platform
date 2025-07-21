@@ -73,6 +73,27 @@ elif section == "Data":
 elif section == "Pipeline Actions":
     st.header("🚀 Pipeline Actions")
     st.info("Run individual stages of the pipeline (ingest, chunk, embed, retrieve, ask).")
+
+    st.markdown("### 🧠 Preprocessing: Image Enrichment & Indexing")
+
+    selected_project = st.session_state.get("selected_project")
+    if selected_project:
+        project_path = Path("data/projects") / selected_project
+
+        doc_type = st.selectbox("Choose document type", ["pptx", "pdf", "docx", "eml", "txt"])
+
+        if st.button("🖼️ Enrich Chunks with Image Insights"):
+            with st.spinner("Running image enrichment..."):
+                os.system(f"python cli.py enrich-images {project_path} --doc-type {doc_type}")
+            st.success("✅ Image enrichment complete.")
+
+        if st.button("🔍 Index Image Chunks"):
+            with st.spinner("Indexing image insights..."):
+                os.system(f"python cli.py index-images {project_path} --doc-type pptx")
+            st.success("✅ Image indexing complete.")
+    else:
+        st.warning("Please select a project in the 'Projects' tab first.")
+
     st.subheader("Ask a Question")
 
     base_path = Path("data/projects")
