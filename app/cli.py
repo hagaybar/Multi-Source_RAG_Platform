@@ -157,81 +157,60 @@ def ingest(
 @app.command()
 def embed(
     project_dir: Path,
-    use_async: bool = typer.Option(False, "--a-b", "--async-batch", help="Use OpenAI async batch embedding")
+    use_async: bool = typer.Option(False, "--a-b", "--async-batch", help="Use OpenAI async batch embedding"),
+    with_image_index: bool = typer.Option(False, "--with-image-index", help="Run image enrichment and indexing after embedding")
 ) -> None:
     """
     Generate embeddings for chunks in the specified project directory.
+    Optionally run image enrichment + indexing after embedding.
     """
     cli_logger.info("\n" + "=" * 120)
     cli_logger.info("DEBUG: CLI embed() command STARTING")
     cli_logger.info("=" * 120)
     
     cli_logger.info(f"DEBUG: CLI Arguments received:")
-    cli_logger.info(f"DEBUG:   - project_dir: {project_dir}")
-    cli_logger.info(f"DEBUG:   - use_async: {use_async}")
-    cli_logger.info(f"DEBUG:   - use_async type: {type(use_async)}")
-    
+    cli_logger.info(f"  - project_dir: {project_dir}")
+    cli_logger.info(f"  - use_async: {use_async}")
+    cli_logger.info(f"  - with_image_index: {with_image_index}")
+
     if not project_dir.exists():
-        error_msg = f"Project directory does not exist: {project_dir}"
-        cli_logger.error(f"ERROR: {error_msg}")
-        typer.echo(f"Error: {error_msg}")
+        typer.echo(f"❌ Project directory does not exist: {project_dir}")
         raise typer.Exit(1)
-    
-    # logger = LoggerManager.get_logger("cli") # Already have cli_logger
-    
-    # Initialize project manager
-    cli_logger.info("DEBUG: Creating ProjectManager...")
+
     project = ProjectManager(project_dir)
-    cli_logger.info(f"DEBUG: ProjectManager created for: {project_dir}")
     runtime_config = copy_module.deepcopy(project.config)
-    cli_logger.info(f"DEBUG: Project config loaded: {runtime_config}")
 
-    # Override config if async flag is provided
     if use_async:
-        cli_logger.info("DEBUG: CLI use_async is TRUE - Overriding config")
-        cli_logger.info("Embedding mode override: use_async_batch=True")
-        
-        # Set the runtime config directly (config is a plain dict)
-        if 'embedding' not in runtime_config:
-            runtime_config['embedding'] = {}
-        
-        runtime_config['embedding']['use_async_batch'] = True
-        cli_logger.info("DEBUG: Set runtime_config['embedding']['use_async_batch'] = True")
-        cli_logger.info(f"DEBUG: Updated runtime config: {runtime_config}")
-        cli_logger.info(f"DEBUG: Original project.config unchanged: {project.config}")
-        
-        # Verify the setting in runtime_config (since config is a plain dict)
-        if 'embedding' in runtime_config and 'use_async_batch' in runtime_config['embedding']:
-            async_batch_value = runtime_config['embedding']['use_async_batch']
-            cli_logger.info(f"DEBUG: Verification - runtime_config['embedding']['use_async_batch'] = {async_batch_value}")
-        else:
-            cli_logger.info("DEBUG: use_async_batch not found in runtime_config")
-        
-    else:
-        cli_logger.info("DEBUG: CLI use_async is FALSE - Using default config")
-        cli_logger.info("Embedding mode: using default configuration")
-    
-    cli_logger.info("DEBUG: About to create UnifiedEmbedder...")
-    embedder = UnifiedEmbedder(project, runtime_config=runtime_config)
-    
-    cli_logger.info(f"DEBUG: UnifiedEmbedder created:")
-    cli_logger.info(f"DEBUG:   - embedder.use_async_batch: {embedder.use_async_batch}")
-    cli_logger.info(f"DEBUG:   - Expected: {use_async}")
-    
-    if use_async and not embedder.use_async_batch:
-        cli_logger.error("ERROR: CLI flag --async was True but embedder.use_async_batch is False!")
-        cli_logger.error("ERROR: Configuration override failed!")
-    elif use_async and embedder.use_async_batch:
-        cli_logger.info("SUCCESS: CLI flag --async correctly set embedder.use_async_batch = True")
+        runtime_config.setdefault("embedding", {})["use_async_batch"] = True
 
-    cli_logger.info(f"CLI: Created embedder with use_async_batch={embedder.use_async_batch}")
-    
-    cli_logger.info("DEBUG: About to call embedder.run_from_folder()...")
+    embedder = UnifiedEmbedder(project, runtime_config=runtime_config)
     embedder.run_from_folder()
-    
+
+    cli_logger.info("✅ Embedding complete.")
+
+    # Optional post-processing: image enrichment and indexing
+    if with_image_index:
+        cli_logger.info("🧠 Starting image enrichment + indexing...")
+
+        import subprocess
+        doc_types = ["pptx", "pdf", "docx"]  # You can extend this as needed
+
+        for doc_type in doc_types:
+            enrich_cmd = f"python cli.py enrich-images {project_dir} --doc-type {doc_type}"
+            index_cmd = f"python cli.py index-images {project_dir} --doc-type {doc_type}"
+
+            cli_logger.info(f"Running: {enrich_cmd}")
+            subprocess.call(enrich_cmd, shell=True)
+
+            cli_logger.info(f"Running: {index_cmd}")
+            subprocess.call(index_cmd, shell=True)
+
+        cli_logger.info("✅ Image indexing complete.")
+
     cli_logger.info("=" * 120)
     cli_logger.info("DEBUG: CLI embed() command COMPLETE")
     cli_logger.info("=" * 120)
+
 
 @app.command()
 def retrieve(
