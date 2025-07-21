@@ -6,7 +6,7 @@ from scripts.pipeline.runner import PipelineRunner
 
 def main():
     # Load config and project
-    project_root = Path("data/projects/test_coordinators_data")
+    project_root = Path("data/projects/test_minimal_data")
     config_path = project_root / "config.yml"
 
     with config_path.open("r", encoding="utf-8") as f:
