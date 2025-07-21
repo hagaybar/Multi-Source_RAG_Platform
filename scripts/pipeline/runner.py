@@ -236,6 +236,58 @@ class PipelineRunner:
 
             yield f"✅ Enrichment complete: {count_enriched}/{count_total} chunks enriched"
 
+    def step_index_images(self, doc_types: list[str] = None, **kwargs) -> Iterator[str]:
+        """
+        Index enriched image descriptions into FAISS and metadata JSONL.
+        """
+        from scripts.chunking.models import ImageChunk
+        from scripts.embeddings.image_indexer import ImageIndexer
+
+        doc_types = doc_types or ["pptx", "pdf", "docx"]
+        enriched_dir = self.project.input_dir / "enriched"
+        indexer = ImageIndexer(self.project)
+
+        count_total = 0
+
+        for doc_type in doc_types:
+            file_path = enriched_dir / f"chunks_{doc_type}.tsv"
+            if not file_path.exists():
+                yield f"⚠️ Skipping {doc_type} — no enriched chunks found."
+                continue
+
+            image_chunks = []
+            with open(file_path, encoding="utf-8") as f:
+                reader = csv.reader(f, delimiter="\t")
+                header = next(reader)
+                for row in reader:
+                    if len(row) < 5:
+                        continue
+                    meta = json.loads(row[4])
+                    summaries = meta.get("image_summaries", [])
+                    for summary in summaries:
+                        image_chunks.append(
+                            ImageChunk(
+                                id=str(uuid.uuid4()),
+                                description=summary["description"],
+                                meta={
+                                    "image_path": summary["image_path"],
+                                    "source_chunk_id": row[0],
+                                    "doc_type": meta.get("doc_type"),
+                                    "source_filepath": meta.get("source_filepath"),
+                                    "page_number": meta.get("page_number"),
+                                },
+                            )
+                        )
+
+            if image_chunks:
+                indexer.run(image_chunks)
+                count_total += len(image_chunks)
+                yield f"✅ Indexed {len(image_chunks)} image chunks for {doc_type}."
+            else:
+                yield f"⚠️ No image summaries found in {file_path.name}."
+
+        yield f"🧠 Image indexing complete. Total: {count_total}"
+
     def step_embed(self, **kwargs) -> Iterator[str]:
             yield "🧬 Starting embedding step..."
 
