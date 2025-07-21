@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import pathlib
 from pathlib import Path
-from typing import List, Tuple, Dict
+from typing import List, Tuple
 from docx import Document
 from docx.oxml.ns import qn
 import logging
-import hashlib
+import os
 
 from scripts.utils.image_utils import (
     infer_project_root,
@@ -30,10 +30,6 @@ def load_docx(path: str | pathlib.Path) -> List[Tuple[str, dict]]:
     print(f"[loader] Writing image to: {image_dir}")
 
     segments: List[Tuple[str, dict]] = []
-    
-    # Track saved images to avoid duplicates
-    saved_images: Dict[str, str] = {}  # rId -> saved_path
-    img_counter = 0  # Global counter for image numbering
 
     for para_idx, paragraph in enumerate(document.paragraphs, start=1):
         text = paragraph.text.strip()
@@ -45,69 +41,67 @@ def load_docx(path: str | pathlib.Path) -> List[Tuple[str, dict]]:
         }
 
         image_paths = []
-        
-        # Look for blips in this paragraph
-        blips = paragraph._element.xpath(".//a:blip")
-        
-        for blip in blips:
-            rId = blip.get(qn("r:embed"))
-            if not rId:
-                continue
-                
-            # Check if we already saved this image
-            if rId in saved_images:
-                # Reuse the existing path
-                image_paths.append(saved_images[rId])
-                print(f"[DEBUG] Paragraph {para_idx} → reusing image {rId}: {saved_images[rId]}")
-            else:
-                # Get the image part
+        img_count = 0
+
+        for run in paragraph.runs:
+            blips = run._element.xpath(".//a:blip")
+            for blip in blips:
+                rId = blip.get(qn("r:embed"))
                 image_part = document.part.related_parts.get(rId)
                 if not image_part:
                     continue
 
-                # Save the new image
                 img_name = generate_image_filename(
                     doc_id=doc_id,
                     page_number=para_idx,
-                    img_index=img_counter,
+                    img_index=img_count,
                 )
                 img_path = image_dir / img_name
                 save_image_blob(image_part.blob, img_path)
-                
+                if image_paths:
+                    print(f"[DEBUG] Paragraph {para_idx} → extracted {len(image_paths)} image(s): {image_paths}")
+                    logger.info(f"[DOCX] [DEBUG] Paragraph {para_idx} → extracted {len(image_paths)} image(s): {image_paths}")
+
+
                 try:
                     rel_path = img_path.resolve().relative_to((project_root / "input").resolve())
-                    saved_path = str(rel_path)
+                    image_paths.append(str(rel_path))
                 except ValueError:
-                    saved_path = f"cache/images/{img_path.name}"
-                
-                saved_images[rId] = saved_path
-                image_paths.append(saved_path)
-                img_counter += 1
-                
-                print(f"[DEBUG] Paragraph {para_idx} → saved new image {rId}: {saved_path}")
-                logger.info(f"[DOCX] Paragraph {para_idx} → saved image {rId}: {saved_path}")
+                    image_paths.append(f"cache/images/{img_path.name}")
 
-        # Add image paths to metadata if any were found
+                img_count += 1
+
         if image_paths:
             meta["image_paths"] = image_paths
-            print(f"[DEBUG] Paragraph {para_idx} → extracted {len(image_paths)} image(s): {image_paths}")
-            logger.info(f"[DOCX] [DEBUG] Paragraph {para_idx} → extracted {len(image_paths)} image(s): {image_paths}")
 
-        # Create segment if there's text or images
-        if text or image_paths:
-            segments.append((text or "[Image-only content]", meta))
-        else:
+        if not (text or image_paths):
             print(f"[DEBUG] Paragraph {para_idx} was skipped — no text and no images recorded.")
             logger.debug(f"[DOCX] [DEBUG] Paragraph {para_idx} was skipped — no text and no images recorded.")
 
-    # Debug: Print all segments with images
-    print(f"\n[DEBUG] All segments with images:")
-    for idx, (text, meta) in enumerate(segments):
-        if 'image_paths' in meta:
-            print(f"  Segment {idx}: Paragraph {meta['paragraph_number']}, Images: {meta['image_paths']}")
-    
+        
+        # ✅ Fallback: if no image_paths were recorded but images were saved for this paragraph
+        if not image_paths:
+            # Matches filenames like: docx_new_example_page15_img0.png
+            pattern = f"{path.stem}_page{para_idx}_img*.png"
+            potential_images = sorted(image_dir.glob(pattern))
+
+            if potential_images:
+                image_paths = []
+                for p in potential_images:
+                    try:
+                        rel = p.resolve().relative_to((project_root / "input").resolve())
+                        image_paths.append(str(rel))
+                    except ValueError:
+                        # Fallback for strange paths
+                        image_paths.append(f"cache/images/{p.name}")
+                meta["image_paths"] = image_paths
+
+
+
+        if text or image_paths:
+            segments.append((text or "[Image-only content]", meta))
+
     print(f"[INFO] Extracted {sum('image_paths' in m for _, m in segments)} image-attached chunks from {path.name}")
-    print(f"[INFO] Total segments: {len(segments)}")
 
     # Add tables
     for tbl_idx, table in enumerate(document.tables, start=1):
@@ -126,10 +120,4 @@ def load_docx(path: str | pathlib.Path) -> List[Tuple[str, dict]]:
             }
             segments.append((tbl_text, meta))
 
-    # Final verification
-    print(f"\n[FINAL DEBUG] Returning {len(segments)} segments")
-    for i, (text, meta) in enumerate(segments):
-        if 'image_paths' in meta:
-            print(f"  Segment {i}: {meta.get('doc_type')} para {meta.get('paragraph_number', 'N/A')}, images: {meta['image_paths']}")
-    
     return segments

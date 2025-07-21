@@ -101,7 +101,10 @@ class PipelineRunner:
         # Optional: hash-based deduplication (placeholder)
         new_docs = []
         for doc in raw_docs:
-            doc_hash = hashlib.sha256(doc.content.encode("utf-8")).hexdigest()
+            hash_base = doc.content.strip()
+            if "image_paths" in doc.metadata:
+                hash_base += ",".join(doc.metadata["image_paths"])
+            doc_hash = hashlib.sha256(hash_base.encode("utf-8")).hexdigest()
             doc.metadata["content_hash"] = doc_hash
 
             if doc_hash not in self.seen_hashes:
@@ -130,8 +133,13 @@ class PipelineRunner:
 
                 meta = doc.metadata.copy()
                 meta["doc_id"] = doc_id
+                print(f"[CHUNK DEBUG] doc_id: {doc_id}, paragraph: {meta.get('paragraph_number')}, image_paths: {meta.get('image_paths')}")
+
 
                 try:
+                    if "image_paths" in meta:
+                        print(f"[CHUNK] Passing image_paths for {doc_id}: {meta['image_paths']}")
+                        print(f"[CHUNK] Paragraph {meta.get('paragraph_number')} - images: {meta['image_paths']}")    
                     chunks = chunk_text(doc.content, meta)
                     all_chunks.extend(chunks)
                     yield f"✂️ {len(chunks)} chunks from {doc_type.upper()} document: {doc_id}"

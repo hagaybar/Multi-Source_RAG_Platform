@@ -67,11 +67,12 @@ def merge_chunks_with_overlap(paragraphs: list[str], meta: dict, rule: ChunkRule
         if buffer_tokens + para_tokens >= rule.max_tokens:
             chunk_tokens = " ".join(prev_tail_tokens + buffer).split()
             chunk_text = " ".join(chunk_tokens)
-            if len(chunk_tokens) >= rule.min_tokens:
+            if len(chunk_tokens) >= rule.min_tokens or meta.get("image_paths"):
                 chunks.append(build_chunk(chunk_text, meta, len(chunk_tokens), doc_id))
-                # logger.debug(f"[MERGE] Created chunk with {len(chunk_tokens)} tokens")
+                logger.debug(f"[MERGE] Created chunk with {len(chunk_tokens)} tokens (image-aware pass)")
             else:
-                logger.debug(f"[MERGE] Skipped chunk with only {len(chunk_tokens)} tokens (< min_tokens)")
+                logger.debug(f"[MERGE] Skipped chunk with only {len(chunk_tokens)} tokens and no image_paths")
+
 
             prev_tail_tokens = chunk_tokens[-rule.overlap:] if rule.overlap else []
             buffer = []

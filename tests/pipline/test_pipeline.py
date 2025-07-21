@@ -16,12 +16,13 @@ def main():
     runner = PipelineRunner(project, config)
 
     # Add steps: ingest → chunk
-    runner.clear_steps()
-    runner.add_step("ingest")
-    runner.add_step("chunk")
-
+    # runner.clear_steps()
+    # runner.add_step("ingest")
+    # runner.add_step("chunk")
     # runner.add_step("enrich")
-    
+    runner.clear_steps()
+    runner.add_step("chunk")
+    runner.add_step("enrich")
     # Run and stream output
     for msg in runner.run_steps():
         print(msg)

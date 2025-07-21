@@ -40,7 +40,9 @@ class ImageInsightAgent(AgentProtocol):
         prompt = self.prompt_template.replace("{{ context }}", context)
 
         for image_path in image_paths:
-            full_path = Path(project.root_dir) / image_path
+            # full_path = Path(project.root_dir) / image_path
+            full_path = project.input_dir / image_path
+
             if not full_path.exists():
                 self.logger.warning(f"Image file not found: {full_path}")
                 continue
