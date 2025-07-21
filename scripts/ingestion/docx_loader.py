@@ -47,7 +47,7 @@ def load_docx(path: str | pathlib.Path) -> List[Tuple[str, dict]]:
         }
 
         img_count = 0
-        image_found = False
+        image_paths = []
         meta = base_meta.copy()
 
         for run in paragraph.runs:
@@ -66,12 +66,18 @@ def load_docx(path: str | pathlib.Path) -> List[Tuple[str, dict]]:
                 img_path = image_dir / img_name
                 save_image_blob(image_part.blob, img_path)
 
-                record_image_metadata(meta, img_path, project_root)
-                image_found = True
+                image_paths.append(img_path)
                 img_count += 1
 
-        if text or image_found:
+        # After loop: if any images, record them to metadata
+        if image_paths:
+            meta["image_paths"] = [
+                str(p.relative_to(project_root / "input")) for p in image_paths
+            ]
+
+        if text or image_paths:
             segments.append((text or "[Image-only content]", meta))
+
 
     print(f"[INFO] Extracted {sum('image_paths' in s[1] for s in segments)} image-attached chunks from {path.name}")
 
