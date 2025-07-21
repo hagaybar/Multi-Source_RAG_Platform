@@ -9,6 +9,7 @@ from scripts.embeddings.embedder_registry import get_embedder
 from scripts.retrieval.base import BaseRetriever, FaissRetriever
 from scripts.retrieval.strategies.strategy_registry import STRATEGY_REGISTRY
 from scripts.utils.chunk_utils import deduplicate_chunks
+from scripts.retrieval.image_retriever import ImageRetriever
 
 
 class RetrievalManager:
@@ -24,7 +25,12 @@ class RetrievalManager:
         self.project = project
         self.retrievers: Dict[str, BaseRetriever] = self._load_retrievers()
         self.embedder = get_embedder(project)
-
+        image_index = project.output_dir / "image_index.faiss"
+        image_meta = project.output_dir / "image_metadata.jsonl"
+        if image_index.exists() and image_meta.exists():
+            self.image_retriever = ImageRetriever(str(image_index), str(image_meta))
+        else:
+            self.image_retriever = None
 
     def _load_retrievers(self) -> Dict[str, BaseRetriever]:
         retrievers = {}
@@ -62,29 +68,33 @@ class RetrievalManager:
         strategy: str = "late_fusion",
         filters: Optional[Dict] = None
     ) -> List[Chunk]:
-        """
-        Main entry point to run a retrieval strategy.
-
-        Args:
-            query (str): The search query string.
-            top_k (int): Number of results to return (after fusion/ranking).
-            strategy (str): Name of the retrieval strategy to apply.
-            filters (dict): Optional metadata filters (e.g., date range).
-
-        Returns:
-            List[Chunk]: Top-matching chunks across all doc types.
-        """
         if strategy not in STRATEGY_REGISTRY:
             raise ValueError(f"Unknown strategy: {strategy}")
 
         strategy_fn = STRATEGY_REGISTRY[strategy]
         query_vector = self.embed_query(query)
 
-        results = strategy_fn(
+        # Text-based retrieval
+        chunk_results = strategy_fn(
             query_vector=query_vector,
             retrievers=self.retrievers,
             top_k=top_k,
             filters=filters or {}
         )
 
-        return deduplicate_chunks(results, existing_hashes=set(), skip_duplicates=True)
+        # Image-based retrieval
+        image_results = []
+        if self.image_retriever:
+            image_results = self.image_retriever.search(query_vector, top_k=top_k)
+
+        # Optional: promote source chunks tied to image matches
+        chunk_map = {chunk.id: chunk for chunk in chunk_results}
+        for img in image_results:
+            chunk_id = img.meta.get("source_chunk_id")
+            if chunk_id in chunk_map:
+                # Boost score or annotate
+                chunk_map[chunk_id].meta["promoted_by_image"] = True
+                chunk_map[chunk_id].meta["image_similarity"] = img.meta.get("similarity", 0)
+
+        combined = list(chunk_map.values()) + image_results  # image results can be returned as-is
+        return deduplicate_chunks(combined, existing_hashes=set(), skip_duplicates=True)
