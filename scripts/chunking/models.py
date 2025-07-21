@@ -21,3 +21,9 @@ class Doc:
 
   def __repr__(self):
     return f"Doc(doc_id='{self.doc_id}', num_chunks={len(self.chunks)}, meta={self.meta})"
+
+@dataclass
+class ImageChunk:
+    id: str
+    description: str
+    meta: dict
