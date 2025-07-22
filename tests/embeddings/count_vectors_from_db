@@ -1,0 +1,3 @@
+import faiss
+index = faiss.read_index("/home/hagaybar/projects/Multi-Source_RAG_Platform/data/projects/test_minimal_data/output/image_index.faiss")
+print(index.ntotal)  # number of vectors

@@ -1,5 +1,6 @@
 from pathlib import Path
 from scripts.utils.config_loader import ConfigLoader
+from werkzeug.utils import secure_filename
 
 class ProjectManager:
     """
@@ -49,6 +50,7 @@ class ProjectManager:
         """
         Creates a new project directory and a default config.yml file.
         """
+        project_name = secure_filename(project_name)
         project_root = projects_base_dir / project_name
         if project_root.exists():
             raise FileExistsError(f"Project '{project_name}' already exists.")
