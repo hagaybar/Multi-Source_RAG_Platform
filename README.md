@@ -41,6 +41,32 @@ poetry run streamlit run app/ui_streamlit.py   # default browser opens
 
 ---
 
+## 💻 UI Usage
+
+The Streamlit UI provides a user-friendly interface for managing RAG-GP projects.
+
+### Creating a New Project
+
+1.  Navigate to the "Projects" section in the sidebar.
+2.  Fill out the "Create New Project" form:
+    *   **Project Name:** A unique name for your project.
+    *   **Project Description:** An optional description of your project.
+    *   **Language:** The primary language of your documents.
+    *   **Enable Image Enrichment:** Check this box to enable image analysis features.
+    *   **Embedding Model:** Select the embedding model to use for your project.
+3.  Click the "Create Project" button.
+
+### Managing a Project
+
+Once you have created a project, you can manage it from the "Projects" section.
+
+*   **Select a Project:** Choose a project from the dropdown menu to view its details.
+*   **Configuration Editor:** The `config.yml` file for the selected project is displayed in a text editor. You can make changes to the configuration and save them by clicking the "Save Config" button.
+*   **Upload Raw Data:** You can upload raw data files (e.g., .pdf, .docx, .txt) to your project using the file uploader. The files will be saved to the appropriate subdirectory under `data/projects/<project_name>/input/raw/`.
+*   **Raw File Repository:** The "Raw File Repository" section displays a list of all the raw data files in your project, grouped by file type.
+
+---
+
 ## 🗂️ Folder Structure (excerpt)
 
 ```text
