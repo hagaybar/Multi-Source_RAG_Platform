@@ -1,6 +1,6 @@
 [project]
 name = "multi-source-rag-platform"
-version = "0.1.1"
+version = "0.5.1"
 description = ""
 authors = [
     {name = "Hagay Bar",email = "hagay.bar@gmail.com"}
