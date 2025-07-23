@@ -55,14 +55,18 @@ class ProjectManager:
         if project_root.exists():
             raise FileExistsError(f"Project '{project_name}' already exists.")
 
-        # Create project directories
-        input_raw_dir = project_root / "input" / "raw"
-        output_dir = project_root / "output"
-        logs_dir = output_dir / "logs"
-        faiss_dir = output_dir / "faiss"
-        metadata_dir = output_dir / "metadata"
+        # Load paths from config (or fallback to defaults)
+        paths_cfg = default_config["paths"]
 
-        for path in [input_raw_dir, logs_dir, faiss_dir, metadata_dir]:
+        input_dir = project_root / paths_cfg.get("input_dir", "input")
+        raw_dir = input_dir / paths_cfg.get("raw_dir", "raw")
+        output_dir = project_root / paths_cfg.get("output_dir", "output")
+        logs_dir = project_root / paths_cfg.get("logs_dir", "output/logs")
+        faiss_dir = project_root / paths_cfg.get("faiss_dir", "output/faiss")
+        metadata_dir = project_root / paths_cfg.get("metadata_dir", "output/metadata")
+
+        # Create necessary directories
+        for path in [raw_dir, logs_dir, faiss_dir, metadata_dir]:
             path.mkdir(parents=True, exist_ok=True)
 
         # Create a default config.yml
