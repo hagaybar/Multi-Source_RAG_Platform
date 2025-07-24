@@ -31,6 +31,7 @@ package-mode = false
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.4.1"
 pylint = "^3.3.7"
+ruff = "^0.12.5"
 
 [tool.poetry.scripts]
 litellm = "litellm.__main__:entrypoint"

@@ -504,8 +504,8 @@ class PipelineRunner:
 
     def step_retrieve(self, query: str, top_k: int = 5, strategy: str = "late_fusion", **kwargs) -> Iterator[str]:
         """
-        Retrieves top-k chunks relevant to the query using the configured strategy.
-        Stores results in self.retrieved_chunks for downstream use.
+        Retrieves top-k results (text + image-aware) using late fusion.
+        Stores results in self.retrieved_chunks for step_ask() or inspection.
         """
         yield "🔍 Starting retrieval..."
         if not query:
@@ -525,15 +525,25 @@ class PipelineRunner:
             yield f"✅ Retrieved {len(chunks)} chunks for query: “{query[:40]}...”"
 
             for i, chunk in enumerate(chunks, 1):
-                doc_id = chunk.doc_id
-                source = chunk.meta.get("source_filepath", "N/A")
-                sim = chunk.meta.get("similarity", 0)
-                preview = chunk.text.strip()[:80].replace("\n", " ")
-                yield f"[{i}] 📄 {doc_id} (score={sim:.3f}) → {preview}"
+                doc_id = getattr(chunk, "doc_id", "N/A")
+                retriever_name = chunk.meta.get("_retriever", "unknown")
+                score = chunk.meta.get("similarity", 0)
+
+                if hasattr(chunk, "description") and not hasattr(chunk, "text"):
+                    # ImageChunk
+                    preview = chunk.description.strip()[:80].replace("\n", " ")
+                    chunk_type = "🖼️ Image"
+                else:
+                    preview = chunk.text.strip()[:80].replace("\n", " ")
+                    chunk_type = chunk.meta.get("doc_type", "text")
+
+                yield f"[{i}] {chunk_type} | From: {retriever_name} | Score: {score:.3f} | doc_id: {doc_id}"
+                yield f"     → {preview}"
 
         except Exception as e:
-            self.logger.error("Retrieval failed: %s", e, exc_info=True)
+            self.logger.error(f"Retrieval failed: {e}", exc_info=True)
             yield f"❌ Retrieval failed: {e}"
+
 
     def step_ask(
         self,
