@@ -5,12 +5,26 @@ import json
 from scripts.chunking.models import Chunk
 
 
-def deduplicate_chunks(chunks: List[Chunk], existing_hashes: set[str], skip_duplicates: bool, logger=None) -> List[Chunk]:
+def deduplicate_chunks(
+    chunks: List[Chunk],
+    existing_hashes: set[str],
+    skip_duplicates: bool,
+    logger=None
+) -> List[Chunk]:
+    print(f"[DEBUG] deduplicate_chunks called with skip_duplicates={skip_duplicates}")
     new_chunks = []
     seen_hashes = set()
+    print(f"[DEBUG] deduplicate_chunks received {len(chunks)} chunks")
+    print(f"[DEBUG] First chunk type: {type(chunks[0])}")
 
     for chunk in chunks:
-        content_hash = hashlib.sha256(chunk.text.strip().encode("utf-8")).hexdigest()
+        raw = getattr(chunk, "text", None) or getattr(chunk, "description", None)
+        if not raw:
+            logger.warning(f"Skipping chunk with no text or description (id={chunk.id})")
+            continue
+
+        content_hash = hashlib.sha256(raw.strip().encode("utf-8")).hexdigest()
+
 
         if skip_duplicates and content_hash in existing_hashes:
             if logger:
