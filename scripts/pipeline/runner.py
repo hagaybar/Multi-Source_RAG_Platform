@@ -584,10 +584,13 @@ class PipelineRunner:
             yield "💬 Final Answer:"
             yield answer.strip()
 
-            sources = {
-                chunk.meta.get("source_filepath", chunk.doc_id)
-                for chunk in self.retrieved_chunks
-            }
+            sources = set()
+
+            for chunk in self.retrieved_chunks:
+                source_id = chunk.meta.get("source_filepath") or getattr(chunk, "doc_id", None)
+                if source_id:
+                    sources.add(str(source_id))
+
             if sources:
                 yield ""
                 yield "📄 Sources used:"

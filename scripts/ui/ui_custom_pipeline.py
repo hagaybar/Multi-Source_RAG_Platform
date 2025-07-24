@@ -5,6 +5,7 @@ from pathlib import Path
 from scripts.core.project_manager import ProjectManager
 from scripts.ui.validation_helpers import validate_steps
 from scripts.pipeline.runner import PipelineRunner
+from scripts.utils.ui_utils import render_text_block
 
 
 
@@ -31,7 +32,6 @@ def render_custom_pipeline_tab():
     project = ProjectManager(project_path)
 
     st.write("Loaded project at:", project.root_dir)
-    st.markdown("==== testing 123 ====")
 
 
     st.markdown("---")
@@ -76,10 +76,6 @@ def render_custom_pipeline_tab():
         query = st.text_input("Query (required for retrieve/ask):", "")
 
     st.markdown("---")
-    # if st.button("🚀 Run Selected Steps"):
-    #     st.write("✅ Steps selected:", selected_steps)
-    #     st.write("Query:", query)
-    #     st.write("🔧 [Validation and execution will follow in next steps]")
     run_disabled = not selected_steps
     if st.button("🚀 Run Selected Steps", disabled=run_disabled):
         unique_steps = list(dict.fromkeys(selected_steps))
@@ -105,7 +101,7 @@ def render_custom_pipeline_tab():
             else:
                 # st.write("▶️ About to register these steps:", selected_steps)
                 runner.add_step(step)
-        # Note: add_step(name, **kwargs) queues up your steps :contentReference[oaicite:2]{index=2}
+                # Note: add_step(name, **kwargs) queues up your steps :contentReference[oaicite:2]{index=2}
 
         # 4️⃣ Execute & stream logs
         log_area  = st.empty()
@@ -115,7 +111,9 @@ def render_custom_pipeline_tab():
             for line in runner.run_steps():
                 log_lines.append(line)
                 # re-render the full log each iteration
-                log_area.text("\n".join(log_lines))
+                log_area.markdown("")  # Clear previous logs
+                for msg in log_lines:
+                    render_text_block(msg)
 
         st.success("🎉 Pipeline complete!")
     if run_disabled:
