@@ -5,7 +5,6 @@ from pathlib import Path
 from scripts.core.project_manager import ProjectManager
 from scripts.ui.validation_helpers import validate_steps
 from scripts.pipeline.runner import PipelineRunner
-from scripts.utils.ui_utils import render_text_block
 
 
 
@@ -104,16 +103,14 @@ def render_custom_pipeline_tab():
                 # Note: add_step(name, **kwargs) queues up your steps :contentReference[oaicite:2]{index=2}
 
         # 4️⃣ Execute & stream logs
-        log_area  = st.empty()
-        log_lines = []  # ← buffer to accumulate
+
+        log_area = st.empty()
+        log_lines = []
 
         with st.spinner("Running pipeline…"):
             for line in runner.run_steps():
                 log_lines.append(line)
-                # re-render the full log each iteration
-                log_area.markdown("")  # Clear previous logs
-                for msg in log_lines:
-                    render_text_block(msg)
+                log_area.text("\n".join(log_lines))
 
         st.success("🎉 Pipeline complete!")
     if run_disabled:
