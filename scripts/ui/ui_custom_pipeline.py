@@ -67,6 +67,8 @@ def render_custom_pipeline_tab():
     "Pipeline Steps", 
     step_choices, 
     default=[])
+    # DEBUG: inspect what the multiselect is returning
+    st.write("🔍 Debug – selected_steps:", selected_steps)
 
     # Step 3: Optional query and options
     query = ""
@@ -80,9 +82,11 @@ def render_custom_pipeline_tab():
     #     st.write("🔧 [Validation and execution will follow in next steps]")
     run_disabled = not selected_steps
     if st.button("🚀 Run Selected Steps", disabled=run_disabled):
+        unique_steps = list(dict.fromkeys(selected_steps))
+        st.write("▶️ Unique steps to run:", unique_steps) 
 
         # 1️⃣ Validate selection
-        is_valid, messages = validate_steps(project, selected_steps, query)
+        is_valid, messages = validate_steps(project, unique_steps, query)
         if not is_valid:
             for msg in messages:
                 st.error(msg)  # show errors  
@@ -99,6 +103,7 @@ def render_custom_pipeline_tab():
             if step in ("retrieve", "ask"):
                 runner.add_step(step, query=query)
             else:
+                # st.write("▶️ About to register these steps:", selected_steps)
                 runner.add_step(step)
         # Note: add_step(name, **kwargs) queues up your steps :contentReference[oaicite:2]{index=2}
 
