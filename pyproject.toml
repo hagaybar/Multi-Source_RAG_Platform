@@ -25,6 +25,11 @@ dependencies = [
     ]
    
 
+[tool.ruff]
+line-length = 100
+select = ["E", "F"]
+ignore = ["E402"]
+
 [tool.poetry]
 package-mode = false
 
