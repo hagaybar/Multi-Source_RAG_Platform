@@ -1,7 +1,17 @@
+import sys
+from pathlib import Path
+
+# Ensure the project root (where pyproject.toml lives) is on sys.path
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.append(str(ROOT))
+
+
 import streamlit as st
 import os
-from pathlib import Path
 from scripts.interface.ask_interface import run_ask
+from scripts.ui.ui_project_manager import render_project_creation, render_config_editor_v2, render_raw_data_upload, render_raw_file_viewer
+from scripts.ui.ui_custom_pipeline import render_custom_pipeline_tab
+
 
 
 st.set_page_config(page_title="RAG-GP UI", layout="wide")
@@ -17,10 +27,6 @@ if "section" not in st.session_state:
 
 # Bind the radio to session state using the `key`
 section = st.sidebar.radio("Navigation", TAB_OPTIONS, key="section")
-
-
-from scripts.ui.ui_project_manager import render_project_creation, render_config_editor, render_config_editor_v2, render_raw_data_upload, render_raw_file_viewer
-from scripts.ui.ui_custom_pipeline import render_custom_pipeline_tab
 
 # Section: Projects
 if section == "Projects":

@@ -455,6 +455,9 @@ class PipelineRunner:
 
                         for summary in summaries:
                             description = summary["description"]
+                            if not description or not isinstance(description, str):
+                                self.logger.warning("Skipping image with empty or invalid description.")
+                                continue
                             img_hash = hashlib.sha256(description.strip().encode("utf-8")).hexdigest()
 
                             if img_hash in existing_hashes:
