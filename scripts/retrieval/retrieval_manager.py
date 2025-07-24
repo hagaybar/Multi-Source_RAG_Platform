@@ -1,4 +1,3 @@
-from pathlib import Path
 from typing import List, Dict, Optional
 import traceback
 
@@ -87,14 +86,31 @@ class RetrievalManager:
         if self.image_retriever:
             image_results = self.image_retriever.search(query_vector, top_k=top_k)
 
-        # Optional: promote source chunks tied to image matches
+        # Promote or enrich matching text chunks using image insights
         chunk_map = {chunk.id: chunk for chunk in chunk_results}
+        promoted_ids = []
+
         for img in image_results:
             chunk_id = img.meta.get("source_chunk_id")
-            if chunk_id in chunk_map:
-                # Boost score or annotate
-                chunk_map[chunk_id].meta["promoted_by_image"] = True
-                chunk_map[chunk_id].meta["image_similarity"] = img.meta.get("similarity", 0)
+            if chunk_id and chunk_id in chunk_map:
+                chunk = chunk_map[chunk_id]
+                chunk.meta.setdefault("image_summaries", [])
+                chunk.meta["image_summaries"].append({
+                    "image_path": img.meta.get("image_path"),
+                    "description": img.description
+                })
+                chunk.meta["promoted_by_image"] = True
+                chunk.meta["image_similarity"] = img.meta.get("similarity", 0)
+                promoted_ids.append(chunk_id)
 
-        combined = list(chunk_map.values()) + image_results  # image results can be returned as-is
+        if promoted_ids:
+            print(f"[DEBUG] Promoted {len(promoted_ids)} text chunks from image hits")
+
+        # Only return image chunks that don't have a matching text parent
+        image_results_filtered = [
+            img for img in image_results
+            if img.meta.get("source_chunk_id") not in chunk_map
+        ]
+
+        combined = list(chunk_map.values()) + image_results_filtered
         return deduplicate_chunks(combined, existing_hashes=set(), skip_duplicates=True)
