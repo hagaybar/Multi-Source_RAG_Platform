@@ -1,24 +1,19 @@
-import os
-import hashlib
-import json
-import csv
-import time
-import pandas as pd
-import numpy as np
-import faiss
-from typing import List, Optional, Union
 from pathlib import Path
-import uuid
 
 # CRITICAL: Add project root to Python path for imports
 import sys
 
-from torch import chunk
 project_root = Path(__file__).parent.parent.parent  # Go up from scripts/embeddings/ to project root
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
     print(f"DEBUG: Added to Python path: {project_root}")
 
+import hashlib
+import json
+import time
+import numpy as np
+import faiss
+from typing import List, Optional
 from scripts.api_clients.openai.batch_embedder import BatchEmbedder
 from scripts.core.project_manager import ProjectManager
 from scripts.chunking.models import Chunk
@@ -137,6 +132,8 @@ class UnifiedEmbedder:
             self.logger.warning("No chunks_*.tsv files found in input folder.")
             print("DEBUG: No base chunk files found - returning")
             return
+        
+        all_chunks = []
 
         for base_chunk_path in chunk_files:
             doc_type = base_chunk_path.stem.split("_", 1)[-1]
@@ -157,8 +154,15 @@ class UnifiedEmbedder:
             print(f"DEBUG: Loading chunks from: {chunk_path.name}")
             self.logger.info(f"Embedding chunks from: {chunk_path.name}")
             chunks = load_chunks(chunk_path)
-            print(f"DEBUG: Loaded {len(chunks)} chunks from {chunk_path.name}")
-            self.run(chunks)
+            self.logger.info(f"DEBUG: Loaded {len(chunks)} chunks from {chunk_path.name}")
+            all_chunks.extend(chunks)
+            # self.run(chunks)
+        if not all_chunks:
+            print("DEBUG: No chunks loaded from any files - returning")
+            self.logger.warning("No chunks loaded from any files. Aborting embedding run.")
+            return
+        print(f"DEBUG: Total chunks loaded from all files: {len(all_chunks)}")
+        self.run(all_chunks)
 
 
 

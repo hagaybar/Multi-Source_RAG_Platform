@@ -1,4 +1,3 @@
-from pathlib import Path
 from typing import List, Dict, Optional
 import traceback
 
@@ -9,6 +8,7 @@ from scripts.embeddings.embedder_registry import get_embedder
 from scripts.retrieval.base import BaseRetriever, FaissRetriever
 from scripts.retrieval.strategies.strategy_registry import STRATEGY_REGISTRY
 from scripts.utils.chunk_utils import deduplicate_chunks
+from scripts.utils.translation_utils import translate_to_english
 from scripts.retrieval.image_retriever import ImageRetriever
 
 
@@ -23,6 +23,7 @@ class RetrievalManager:
 
     def __init__(self, project: ProjectManager):
         self.project = project
+        self.config = project.config  # required for 'embedding.translate_query'
         self.retrievers: Dict[str, BaseRetriever] = self._load_retrievers()
         self.embedder = get_embedder(project)
         image_index = project.output_dir / "image_index.faiss"
@@ -72,29 +73,64 @@ class RetrievalManager:
             raise ValueError(f"Unknown strategy: {strategy}")
 
         strategy_fn = STRATEGY_REGISTRY[strategy]
-        query_vector = self.embed_query(query)
+        query_vectors = [self.embed_query(query)]
 
-        # Text-based retrieval
-        chunk_results = strategy_fn(
-            query_vector=query_vector,
-            retrievers=self.retrievers,
-            top_k=top_k,
-            filters=filters or {}
-        )
+        # Optional translation for multilingual fallback
+        if self.config.get("embedding", {}).get("translate_query", False):
+            translated = translate_to_english(query)
+            if translated and translated != query:
+                print(f"[ML] Added translated query: {translated}")
+                query_vectors.append(self.embed_query(translated))
 
-        # Image-based retrieval
-        image_results = []
-        if self.image_retriever:
-            image_results = self.image_retriever.search(query_vector, top_k=top_k)
+        all_results = []
 
-        # Optional: promote source chunks tied to image matches
-        chunk_map = {chunk.id: chunk for chunk in chunk_results}
-        for img in image_results:
-            chunk_id = img.meta.get("source_chunk_id")
-            if chunk_id in chunk_map:
-                # Boost score or annotate
-                chunk_map[chunk_id].meta["promoted_by_image"] = True
-                chunk_map[chunk_id].meta["image_similarity"] = img.meta.get("similarity", 0)
+        for q_vec in query_vectors:
+            chunk_results = strategy_fn(
+                query_vector=q_vec,
+                retrievers=self.retrievers,
+                top_k=top_k,
+                filters=filters or {}
+            )
 
-        combined = list(chunk_map.values()) + image_results  # image results can be returned as-is
-        return deduplicate_chunks(combined, existing_hashes=set(), skip_duplicates=True)
+            image_results = []
+            if self.image_retriever:
+                image_results = self.image_retriever.search(q_vec, top_k=top_k)
+
+            all_results.extend(chunk_results)
+            all_results.extend(image_results)
+
+        # Promote or enrich matching text chunks using image insights
+        chunk_map = {chunk.id: chunk for chunk in all_results if hasattr(chunk, "text")}
+        promoted_ids = []
+
+        for chunk in all_results:
+            if hasattr(chunk, "description") and hasattr(chunk, "meta"):
+                source_id = chunk.meta.get("source_chunk_id")
+                if source_id and source_id in chunk_map:
+                    parent = chunk_map[source_id]
+                    parent.meta.setdefault("image_summaries", []).append({
+                        "image_path": chunk.meta.get("image_path"),
+                        "description": chunk.description
+                    })
+                    parent.meta["promoted_by_image"] = True
+                    parent.meta["image_similarity"] = chunk.meta.get("similarity", 0)
+                    promoted_ids.append(source_id)
+
+        if promoted_ids:
+            print(f"[DEBUG] Promoted {len(promoted_ids)} text chunks from image hits")
+
+        # Only return image chunks that don't have a matching text chunk
+        image_results_filtered = [
+            chunk for chunk in all_results
+            if hasattr(chunk, "description") and chunk.meta.get("source_chunk_id") not in chunk_map
+        ]
+
+        final = list(chunk_map.values()) + image_results_filtered
+        return deduplicate_chunks(final, existing_hashes=set(), skip_duplicates=True)
+
+
+    def translate_to_english(text: str) -> str:
+        # Placeholder translation logic (real version should call a translation service)
+        if text.strip().startswith("שלום"):
+            return "The university is replacing its encryption certificate. What should we do in Alma?"
+        return text

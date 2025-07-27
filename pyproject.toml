@@ -1,6 +1,6 @@
 [project]
 name = "multi-source-rag-platform"
-version = "0.1.0"
+version = "0.5.1"
 description = ""
 authors = [
     {name = "Hagay Bar",email = "hagay.bar@gmail.com"}
@@ -20,15 +20,23 @@ dependencies = [
     "litellm[proxy] (>=1.73.0,<2.0.0)",
     "pandas (>=2.3.0,<3.0.0)",
     "streamlit (>=1.46.1,<2.0.0)",
-    "werkzeug (>=3.1.3,<4.0.0)"
+    "werkzeug (>=3.1.3,<4.0.0)",
+    "pylint (>=3.3.7,<4.0.0)"
     ]
    
+
+[tool.ruff]
+line-length = 100
+select = ["E", "F"]
+ignore = ["E402"]
 
 [tool.poetry]
 package-mode = false
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.4.1"
+pylint = "^3.3.7"
+ruff = "^0.12.5"
 
 [tool.poetry.scripts]
 litellm = "litellm.__main__:entrypoint"

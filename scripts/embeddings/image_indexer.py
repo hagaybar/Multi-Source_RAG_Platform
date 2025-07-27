@@ -2,7 +2,7 @@ import json
 import uuid
 from pathlib import Path
 from typing import List
-
+import hashlib
 import numpy as np
 import faiss
 
@@ -56,8 +56,13 @@ class ImageIndexer:
         self.logger.info(f"Added {len(vectors)} vectors to index.")
 
         # Append metadata
+        # Append metadata
         with open(self.meta_path, "a", encoding="utf-8") as f:
             for chunk in image_chunks:
+                # Ensure deterministic image_hash (used for deduplication)
+                if "image_hash" not in chunk.meta:
+                    chunk.meta["image_hash"] = hashlib.sha256(chunk.description.strip().encode("utf-8")).hexdigest()
+
                 record = {
                     "id": chunk.id,
                     "description": chunk.description,

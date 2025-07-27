@@ -5,17 +5,29 @@ from scripts.chunking.models import Chunk # Assuming Chunk model is here
 logger = logging.getLogger(__name__)
 
 DEFAULT_PROMPT_TEMPLATE = """
-You are a helpful AI assistant. Answer the user's query based ONLY on the provided context.
-If the context does not contain the answer, state that the answer is not found in the provided context.
-Cite the sources used to answer the query. Refer to sources using their IDs (e.g., [doc_id_1], [doc_id_2]).
+You are an expert assistant helping library systems librarians troubleshoot, configure, and integrate tools like Alma, Primo, SAML authentication, APIs, and other library technologies.
+
+Your job is to answer practical questions based ONLY on the provided context. If the context does not include the answer, clearly state that.
+
+Use citations to support your answer, referring to sources using their IDs (e.g., [doc_id_1], [doc_id_2]).
+
+If the user's question is in Hebrew, please answer in Hebrew. Otherwise, answer in the same language as the question.
+
+---
 
 Context:
 {context_str}
 
-Query: {query_str}
+---
+
+User Question:
+{query_str}
+
+---
 
 Answer:
 """
+
 
 class PromptBuilder:
     """
@@ -53,13 +65,17 @@ class PromptBuilder:
         else:
             context_items = []
             for i, chunk in enumerate(context_chunks):
-                # Prefer 'source_filepath' if available, else 'doc_id'
-                source_id = chunk.meta.get('source_filepath', chunk.doc_id)
-                # Ensure source_id is a string and usable in the prompt.
-                # Replace problematic characters if necessary, or ensure they are clean upstream.
+                # Handle doc_id safely
+                source_id = chunk.meta.get("source_filepath") or getattr(chunk, "doc_id", "unknown")
                 source_id_str = str(source_id).replace("\n", " ").strip()
 
-                context_item = f"Source ID: [{source_id_str}]\nContent: {chunk.text}"
+                # Use text or description depending on chunk type
+                text = getattr(chunk, "text", None) or getattr(chunk, "description", None)
+                if not text:
+                    logger.warning(f"Skipping chunk with no usable content: {getattr(chunk, 'id', 'N/A')}")
+                    continue
+
+                context_item = f"Source ID: [{source_id_str}]\nContent: {text}"
 
                 # Add other relevant metadata if available, e.g., page number
                 page_number = chunk.meta.get('page_number')
