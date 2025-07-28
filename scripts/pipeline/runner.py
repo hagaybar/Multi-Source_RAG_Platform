@@ -1,6 +1,7 @@
 # ─────────────────────────────────────────────
 # 🔧 Standard Library Imports
 # ─────────────────────────────────────────────
+from datetime import datetime
 import json
 import csv
 import uuid
@@ -49,20 +50,25 @@ from scripts.prompting.prompt_builder import PromptBuilder
 # ─────────────────────────────────────────────
 from scripts.utils.logger import LoggerManager
 from scripts.utils.chunk_utils import load_chunks
+from scripts.utils.run_logger import RunLogger
 
 # ─────────────────────────────────────────────
 
 
 class PipelineRunner:
     """
-    Orchestrates sequential execution of modular pipeline steps (ingest, chunk, enrich, embed, index).
+    Orchestrates sequential execution of modular pipeline steps
+    (ingest, chunk, enrich, embed, index).
     """
 
     def __init__(self, project: ProjectManager, config: dict):
         self.project = project
         self.config = config
         self.steps: list[tuple[str, dict]] = []
-        self.logger = LoggerManager.get_logger("PipelineRunner", log_file=project.get_log_path("pipeline"))
+        self.logger = LoggerManager.get_logger(
+            "PipelineRunner",
+            log_file=project.get_log_path("pipeline")
+        )
         self.raw_docs: list[RawDoc] = []  # ← Store output of ingest
         self.seen_hashes: set[str] = set()  # ← Optional deduplication base
         self.chunks: list[Chunk] = []
@@ -275,9 +281,16 @@ class PipelineRunner:
             enriched_path = enriched_dir / f"chunks_{doc_type}.tsv"
 
             # Use enriched if available and enabled
-            path_to_use = enriched_path if image_enrichment_enabled and enriched_path.exists() else chunk_path
+            path_to_use = (
+                enriched_path
+                if image_enrichment_enabled and enriched_path.exists()
+                else chunk_path
+            )
             if image_enrichment_enabled and not enriched_path.exists():
-                yield f"⚠️ Enrichment enabled, but enriched file not found for {doc_type}. Using base chunks."
+                yield (
+                    f"⚠️ Enrichment enabled, but enriched file not found for {doc_type}. "
+                    "Using base chunks."
+                )
 
             yield f"📄 Loading chunks: {path_to_use.name}"
             chunks = load_chunks(path_to_use)
@@ -375,7 +388,10 @@ class PipelineRunner:
         for doc_type, chunks in by_type.items():
             save_path = enriched_dir / f"chunks_{doc_type}.tsv"
             if save_path.exists() and not overwrite:
-                yield f"⚠️ Enriched file already exists: {save_path.name}. Use overwrite=True to replace."
+                yield (
+                    f"⚠️ Enriched file already exists: {save_path.name}. "
+                    "Use overwrite=True to replace."
+                )
                 continue
 
             try:
@@ -455,7 +471,9 @@ class PipelineRunner:
                         for summary in summaries:
                             description = summary["description"]
                             if not description or not isinstance(description, str):
-                                self.logger.warning("Skipping image with empty or invalid description.")
+                                self.logger.warning(
+                                    "Skipping image with empty or invalid description."
+                                )
                                 continue
                             img_hash = hashlib.sha256(description.strip().encode("utf-8")).hexdigest()
 
@@ -501,7 +519,13 @@ class PipelineRunner:
         else:
             yield f"⚠️ No new image chunks indexed. {count_skipped} duplicates skipped."
 
-    def step_retrieve(self, query: str, top_k: int = 5, strategy: str = "late_fusion", **kwargs) -> Iterator[str]:
+    def step_retrieve(
+        self,
+        query: str,
+        top_k: int = 5,
+        strategy: str = "late_fusion",
+        **kwargs
+    ) -> Iterator[str]:
         """
         Retrieves top-k results (text + image-aware) using late fusion.
         Stores results in self.retrieved_chunks for step_ask() or inspection.
@@ -515,6 +539,27 @@ class PipelineRunner:
             retriever = RetrievalManager(self.project)
             yield f"🔢 Strategy: {strategy}, Top-K: {top_k}"
             chunks = retriever.retrieve(query=query, top_k=top_k, strategy=strategy)
+            # ---- LOGGING ----
+            try:
+                run_logger = RunLogger(self.project.root_dir)
+                run_logger.log_metadata({
+                    "query": query,
+                    "top_k": top_k,
+                    "strategy": strategy,
+                    "timestamp": datetime.now().isoformat(),
+                    "pipeline_steps": ["retrieve"]
+                })
+                run_logger.log_chunks(chunks)
+
+                # Optional: detect and log image matches
+                image_chunks = [c for c in chunks if getattr(c, "description", None) and "image_path" in c.meta]
+                if image_chunks:
+                    from scripts.chunking.models import ImageChunk
+                    run_logger.log_images(image_chunks)  # cast is safe due to structure
+            except Exception as e:
+                self.logger.warning(f"RunLogger failed in step_retrieve: {e}")
+            
+            # ---- LOGGING ends ----
 
             if not chunks:
                 yield "⚠️ No results retrieved."
@@ -536,7 +581,10 @@ class PipelineRunner:
                     preview = chunk.text.strip()[:80].replace("\n", " ")
                     chunk_type = chunk.meta.get("doc_type", "text")
 
-                yield f"[{i}] {chunk_type} | From: {retriever_name} | Score: {score:.3f} | doc_id: {doc_id}"
+                yield (
+                    f"[{i}] {chunk_type} | From: {retriever_name} | "
+                    f"Score: {score:.3f} | doc_id: {doc_id}"
+                )
                 yield f"     → {preview}"
 
         except Exception as e:
@@ -571,12 +619,29 @@ class PipelineRunner:
             prompt = prompt_builder.build_prompt(query, context_chunks=self.retrieved_chunks)
             yield f"📜 Prompt built. Sending to model: {model_name}..."
 
+            # Prepare RunLogger
+            run_logger = RunLogger(self.project.root_dir)  # same timestamp folder
+            run_logger.log_prompt(prompt)
+
             completer = OpenAICompleter(model_name=model_name)
             answer = completer.get_completion(
                 prompt=prompt,
                 temperature=temperature,
                 max_tokens=max_tokens
             )
+            run_logger.log_response(answer)
+
+            # Also update metadata
+            run_logger.log_metadata({
+                "query": query,
+                "top_k": top_k,
+                "model": model_name,
+                "temperature": temperature,
+                "max_tokens": max_tokens,
+                "timestamp": datetime.now().isoformat(),
+                "pipeline_steps": ["retrieve", "ask"] if self.retrieved_chunks else ["ask"]
+            })
+
 
             self.last_answer = answer
             yield "✅ Answer received from model."
@@ -629,7 +694,13 @@ class PipelineRunner:
 
         yield from self.run_steps()
 
-    def run_query_only(self, query: str, strategy: str = "late_fusion", top_k: int = 5, model_name: str = "gpt-4o") -> Iterator[str]:
+    def run_query_only(
+        self,
+        query: str,
+        strategy: str = "late_fusion",
+        top_k: int = 5,
+        model_name: str = "gpt-4o"
+    ) -> Iterator[str]:
         """
         Runs only the retrieval and answer generation steps using existing FAISS + metadata.
 
