@@ -30,6 +30,12 @@ line-length = 100
 select = ["E", "F"]
 ignore = ["E402"]
 
+
+[tool.ruff.format]
+# Optional formatting options
+docstring-code-format = true
+quote-style = "preserve"  # or "single" / "double"
+
 [tool.poetry]
 package-mode = false
 
