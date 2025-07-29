@@ -37,7 +37,7 @@ Subject: RE: Timesheets
         "doc_type": "eml",
         "content_type": "email",
         "sender": "alice@example.com",
-        "subject": "Timesheet Reminder"
+        "subject": "Timesheet Reminder",
     }
 
     rule = get_rule("eml")
@@ -74,4 +74,3 @@ Subject: RE: Timesheets
     print(f"Chunks produced: {len(chunks)}")
     for i, chunk in enumerate(chunks):
         print(f"\n--- Chunk {i + 1} ({chunk.token_count} tokens) ---\n{chunk.text}")
-

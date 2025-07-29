@@ -22,11 +22,7 @@ with open(tsv_path, encoding="utf-8") as f:
         meta_json = json.loads(row[4])
         if meta_json.get("image_path"):
             image_chunk = Chunk(
-                id=row[0],
-                doc_id=row[1],
-                text=row[2],
-                token_count=int(row[3]),
-                meta=meta_json
+                id=row[0], doc_id=row[1], text=row[2], token_count=int(row[3]), meta=meta_json
             )
             break
 

@@ -2,6 +2,7 @@ from openai import OpenAI
 
 client = OpenAI()
 
+
 def translate_to_english(text: str) -> str:
     """
     Translates the input text to English using OpenAI's ChatCompletion API (v1.x syntax).
@@ -24,10 +25,10 @@ def translate_to_english(text: str) -> str:
                         "Keep technical and domain-specific terms unchanged."
                     ),
                 },
-                {"role": "user", "content": text}
+                {"role": "user", "content": text},
             ],
             temperature=0,
-            max_tokens=1000
+            max_tokens=1000,
         )
         translated = response.choices[0].message.content.strip()
         return translated

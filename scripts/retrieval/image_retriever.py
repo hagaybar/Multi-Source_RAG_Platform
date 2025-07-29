@@ -46,11 +46,10 @@ class ImageRetriever:
                 ImageChunk(
                     id=meta["id"],
                     description=meta["description"],
-                    meta={k: v for k, v in meta.items() if k not in ("id", "description", "text")}
+                    meta={k: v for k, v in meta.items() if k not in ("id", "description", "text")},
                 )
             )
             top_chunks[-1].meta["similarity"] = float(score)
             top_chunks[-1].meta["_retriever"] = "image"
 
         return top_chunks
- 

@@ -1,6 +1,6 @@
 import logging
 from typing import List
-from scripts.chunking.models import Chunk # Assuming Chunk model is here
+from scripts.chunking.models import Chunk  # Assuming Chunk model is here
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +33,7 @@ class PromptBuilder:
     """
     Builds prompts for the LMM by combining a user query with retrieved context chunks.
     """
+
     def __init__(self, template: str | None = None):
         """
         Initializes the PromptBuilder.
@@ -45,7 +46,9 @@ class PromptBuilder:
         self.template = template or DEFAULT_PROMPT_TEMPLATE
         if "{context_str}" not in self.template or "{query_str}" not in self.template:
             logger.error("Prompt template must include {context_str} and {query_str} placeholders.")
-            raise ValueError("Prompt template must include {context_str} and {query_str} placeholders.")
+            raise ValueError(
+                "Prompt template must include {context_str} and {query_str} placeholders."
+            )
         logger.info("PromptBuilder initialized.")
 
     def build_prompt(self, query: str, context_chunks: List[Chunk]) -> str:
@@ -72,7 +75,9 @@ class PromptBuilder:
                 # Use text or description depending on chunk type
                 text = getattr(chunk, "text", None) or getattr(chunk, "description", None)
                 if not text:
-                    logger.warning(f"Skipping chunk with no usable content: {getattr(chunk, 'id', 'N/A')}")
+                    logger.warning(
+                        f"Skipping chunk with no usable content: {getattr(chunk, 'id', 'N/A')}"
+                    )
                     continue
 
                 context_item = f"Source ID: [{source_id_str}]\nContent: {text}"
@@ -85,18 +90,23 @@ class PromptBuilder:
                 context_items.append(context_item)
             context_str = "\n\n---\n\n".join(context_items)
 
-        logger.info(f"Building prompt for query: '{query}' with {len(context_chunks)} context chunks.")
+        logger.info(
+            f"Building prompt for query: '{query}' with {len(context_chunks)} context chunks."
+        )
 
         # Replace placeholders in the template
         try:
             final_prompt = self.template.format(context_str=context_str, query_str=query)
         except KeyError as e:
-            logger.error(f"Missing placeholder in prompt template: {e}. Ensure template has {{context_str}} and {{query_str}}.")
+            logger.error(
+                f"Missing placeholder in prompt template: {e}. Ensure template has {{context_str}} and {{query_str}}."
+            )
             # Fallback or re-raise, depending on desired robustness
             raise ValueError(f"Failed to format prompt template due to missing placeholder: {e}")
 
         logger.debug(f"Generated prompt: {final_prompt}")
         return final_prompt
+
 
 if __name__ == '__main__':
     # Example Usage
@@ -104,9 +114,24 @@ if __name__ == '__main__':
 
     # Mock Chunks
     mock_chunks_data = [
-        {"doc_id": "doc1.txt", "text": "The sky is blue.", "meta": {"source_filepath": "docs/doc1.txt", "page_number": 1}, "token_count": 4},
-        {"doc_id": "doc2.pdf", "text": "An apple a day keeps the doctor away.", "meta": {"source_filepath": "pdfs/doc2.pdf"}, "token_count": 8},
-        {"doc_id": "doc3.txt", "text": "Water is essential for life.", "meta": {"source_filepath": "notes/doc3.txt", "page_number": 5}, "token_count": 6},
+        {
+            "doc_id": "doc1.txt",
+            "text": "The sky is blue.",
+            "meta": {"source_filepath": "docs/doc1.txt", "page_number": 1},
+            "token_count": 4,
+        },
+        {
+            "doc_id": "doc2.pdf",
+            "text": "An apple a day keeps the doctor away.",
+            "meta": {"source_filepath": "pdfs/doc2.pdf"},
+            "token_count": 8,
+        },
+        {
+            "doc_id": "doc3.txt",
+            "text": "Water is essential for life.",
+            "meta": {"source_filepath": "notes/doc3.txt", "page_number": 5},
+            "token_count": 6,
+        },
     ]
 
     context_chunks = [Chunk(**data) for data in mock_chunks_data]
@@ -118,7 +143,9 @@ if __name__ == '__main__':
         # Test with default template
         builder_default = PromptBuilder()
         prompt_default = builder_default.build_prompt(user_query, context_chunks)
-        logger.info(f"\n--- Generated Prompt (Default Template) ---\n{prompt_default}\n----------------------------------------")
+        logger.info(
+            f"\n--- Generated Prompt (Default Template) ---\n{prompt_default}\n----------------------------------------"
+        )
 
         # Test with a custom template
         CUSTOM_TEMPLATE = """
@@ -132,15 +159,19 @@ if __name__ == '__main__':
         """
         builder_custom = PromptBuilder(template=CUSTOM_TEMPLATE)
         prompt_custom = builder_custom.build_prompt(user_query, context_chunks)
-        logger.info(f"\n--- Generated Prompt (Custom Template) ---\n{prompt_custom}\n---------------------------------------")
+        logger.info(
+            f"\n--- Generated Prompt (Custom Template) ---\n{prompt_custom}\n---------------------------------------"
+        )
 
         # Test with no context
         prompt_no_context = builder_default.build_prompt("What is your name?", [])
-        logger.info(f"\n--- Generated Prompt (No Context) ---\n{prompt_no_context}\n------------------------------------")
+        logger.info(
+            f"\n--- Generated Prompt (No Context) ---\n{prompt_no_context}\n------------------------------------"
+        )
 
         # Test template validation (missing placeholder)
         try:
-            PromptBuilder(template="Query: {query_str}") # Missing {context_str}
+            PromptBuilder(template="Query: {query_str}")  # Missing {context_str}
         except ValueError as e:
             logger.info(f"Successfully caught expected error for bad template: {e}")
 

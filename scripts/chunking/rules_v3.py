@@ -14,11 +14,10 @@ class ChunkRule:
 
 
 _rules_data = None
-_rules_file_path = (
-    Path(__file__).parent.parent.parent / "configs" / "chunk_rules.yaml"
-)
+_rules_file_path = Path(__file__).parent.parent.parent / "configs" / "chunk_rules.yaml"
 
 REQUIRED_KEYS = {"strategy", "min_tokens", "max_tokens", "overlap"}
+
 
 def _load_rules_if_needed():
     """Read configs/chunk_rules.yaml, validate, and cache ChunkRule objects."""
@@ -26,7 +25,7 @@ def _load_rules_if_needed():
     if _rules_data is not None:
         return  # already loaded
     else:  # Loads rules from YAML if not already loaded."""
-         # -------- locate file ---------------------------------------------------
+        # -------- locate file ---------------------------------------------------
         path_to_try = _rules_file_path  # e.g. <repo>/scripts/../configs/chunk_rules.yaml
         if not path_to_try.exists():
             # Fallback: cwd/configs/chunk_rules.yaml  (useful when running tests)
@@ -63,7 +62,6 @@ def _load_rules_if_needed():
         _rules_data = validated
 
 
-
 # scripts/chunking/rules_v3.py
 def get_rule(doc_type: str) -> ChunkRule:
     """Return the ChunkRule for the given doc_type (or fallback to 'default')."""
@@ -75,7 +73,6 @@ def get_rule(doc_type: str) -> ChunkRule:
 
     # rule is already a ChunkRule object, not a dict
     return rule
-
 
 
 def get_all_rules() -> dict[str, ChunkRule]:
@@ -109,4 +106,3 @@ def get_all_doc_types() -> list[str]:
     """
     rules = get_all_rules()
     return list(rules.keys())
-

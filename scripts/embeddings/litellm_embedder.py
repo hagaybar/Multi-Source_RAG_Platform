@@ -16,16 +16,11 @@ class LiteLLMEmbedder(BaseEmbedder):
         self.api_key = api_key or os.getenv("OPEN_AI")  # fallback to env var
 
     def encode(self, texts: List[str]) -> np.ndarray:
-        headers = {
-            "Content-Type": "application/json"
-        }
+        headers = {"Content-Type": "application/json"}
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
 
-        body = {
-            "model": self.model,
-            "input": texts
-        }
+        body = {"model": self.model, "input": texts}
 
         response = requests.post(self.endpoint, headers=headers, json=body)
         response.raise_for_status()

@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+
 def validate_steps(project, steps: list[str], query: str) -> tuple[bool, list[str]]:
     errors = []
     warnings = []

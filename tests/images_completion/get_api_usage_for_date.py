@@ -3,6 +3,7 @@ import requests
 import argparse
 from datetime import datetime, timedelta
 
+
 def get_daily_usage(api_key, target_date):
     """
     Fetches and displays daily OpenAI API usage for a specific date.
@@ -12,12 +13,8 @@ def get_daily_usage(api_key, target_date):
         target_date (str): The date to fetch usage for, in 'YYYY-MM-DD' format.
     """
     api_url = "https://api.openai.com/v1/usage"
-    headers = {
-        "Authorization": f"Bearer {api_key}"
-    }
-    params = {
-        "date": target_date
-    }
+    headers = {"Authorization": f"Bearer {api_key}"}
+    params = {"date": target_date}
 
     print(f"Fetching usage data for: {target_date}...\n")
 
@@ -39,14 +36,13 @@ def get_daily_usage(api_key, target_date):
         for daily_cost in data.get('daily_costs', []):
             for item in daily_cost.get('line_items', []):
                 model_name = item.get('name')
-                cost = item.get('cost') / 100 # Cost is returned in cents
+                cost = item.get('cost') / 100  # Cost is returned in cents
                 total_daily_cost += cost
                 print(f"  - Model: {model_name:<20} | Cost: ${cost:.4f}")
-        
+
         print("---------------------------------")
         print(f"Total cost for {target_date}: ${total_daily_cost:.4f}")
         print("---------------------------------\n")
-
 
         # --- Display Total Usage for Current Billing Period ---
         if 'total_usage' in data:
@@ -64,13 +60,14 @@ def get_daily_usage(api_key, target_date):
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
 
+
 if __name__ == "__main__":
     # --- Set up argument parser ---
     parser = argparse.ArgumentParser(description="Fetch daily OpenAI API usage.")
     parser.add_argument(
         "--date",
         type=str,
-        help="The date to fetch usage for in YYYY-MM-DD format. Defaults to yesterday."
+        help="The date to fetch usage for in YYYY-MM-DD format. Defaults to yesterday.",
     )
     args = parser.parse_args()
 

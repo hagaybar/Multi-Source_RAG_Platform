@@ -4,9 +4,14 @@ from pptx import Presentation
 from pptx.enum.shapes import MSO_SHAPE_TYPE
 from scripts.ingestion.models import AbstractIngestor, UnsupportedFileError
 import logging
-from scripts.utils.image_utils import get_project_image_dir, infer_project_root, record_image_metadata
+from scripts.utils.image_utils import (
+    get_project_image_dir,
+    infer_project_root,
+    record_image_metadata,
+)
 
 logger = logging.getLogger("pptx_ingestor")
+
 
 class PptxIngestor(AbstractIngestor):
     """
@@ -62,7 +67,9 @@ class PptxIngestor(AbstractIngestor):
                                 f.write(img_bytes)
                             logger.info(f"[PPTX] Saved image to: {out_path}")
                         except Exception as img_err:
-                            logger.warning(f"[PPTX] Failed to save image on slide {slide_number}: {img_err}")
+                            logger.warning(
+                                f"[PPTX] Failed to save image on slide {slide_number}: {img_err}"
+                            )
                             continue
 
                         try:
@@ -94,12 +101,9 @@ class PptxIngestor(AbstractIngestor):
                         notes_meta = {
                             "slide_number": slide_number,
                             "type": "presenter_notes",
-                            "doc_type": "pptx"
+                            "doc_type": "pptx",
                         }
-                        formatted_notes = (
-                            f"Presenter Notes (Slide {slide_number}):\n"
-                            f"{notes_text}"
-                        )
+                        formatted_notes = f"Presenter Notes (Slide {slide_number}):\n{notes_text}"
                         extracted_data.append((formatted_notes, notes_meta))
 
         except Exception as e:

@@ -6,10 +6,7 @@ from scripts.chunking.models import Chunk
 
 
 def deduplicate_chunks(
-    chunks: List[Chunk],
-    existing_hashes: set[str],
-    skip_duplicates: bool,
-    logger=None
+    chunks: List[Chunk], existing_hashes: set[str], skip_duplicates: bool, logger=None
 ) -> List[Chunk]:
     print(f"[DEBUG] deduplicate_chunks called with skip_duplicates={skip_duplicates}")
     new_chunks = []
@@ -24,7 +21,6 @@ def deduplicate_chunks(
             continue
 
         content_hash = hashlib.sha256(raw.strip().encode("utf-8")).hexdigest()
-
 
         if skip_duplicates and content_hash in existing_hashes:
             if logger:
@@ -41,6 +37,7 @@ def deduplicate_chunks(
 
     return new_chunks
 
+
 def load_chunks(chunks_path) -> List[Chunk]:
     chunks: List[Chunk] = []
     with open(chunks_path, "r", encoding="utf-8") as f:
@@ -51,7 +48,7 @@ def load_chunks(chunks_path) -> List[Chunk]:
                 doc_id=row["doc_id"],
                 text=row["text"],
                 token_count=int(row["token_count"]),
-                meta=json.loads(row["meta_json"])
+                meta=json.loads(row["meta_json"]),
             )
             chunks.append(chunk)
     return chunks

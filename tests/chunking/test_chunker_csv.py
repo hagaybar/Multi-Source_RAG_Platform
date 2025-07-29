@@ -15,7 +15,9 @@ def count_tokens(text: str) -> int:
 def test_chunker_csv_split_on_rows():
     # ---- Generate realistic CSV content ----
     header = "H1 H2 H3 H4 H5 H6 H7 H8 H9 H10 H11 H12 H13 H14"
-    def row(idx): return " ".join([f"R{idx}_C{j}" for j in range(1, 21)])
+
+    def row(idx):
+        return " ".join([f"R{idx}_C{j}" for j in range(1, 21)])
 
     row_count = 50  # 20 tokens per row
     rows = [header] + [row(i) for i in range(1, row_count + 1)]

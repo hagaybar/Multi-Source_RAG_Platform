@@ -5,6 +5,7 @@ from scripts.ingestion.xlsx import XlsxIngestor
 FIXTURE_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "xlsx"
 FIXTURE_FILE = FIXTURE_DIR / "demo.xlsx"
 
+
 @pytest.mark.parametrize("file_path", [FIXTURE_FILE])
 def test_xlsx_ingestor_loads_sheets(file_path):
     ingestor = XlsxIngestor()

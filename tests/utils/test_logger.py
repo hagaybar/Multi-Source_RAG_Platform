@@ -2,14 +2,15 @@ import os
 import logging
 import json
 import pytest
-import shutil # For cleanup
-import sys # Added for the new test
+import shutil  # For cleanup
+import sys  # Added for the new test
 
 # Import the logger components to be tested
 from scripts.utils.logger import LoggerManager, JsonLogFormatter
 
 # Define a directory for test logs
 TEST_LOG_DIR = "test_logs"
+
 
 @pytest.fixture(scope="function")
 def cleanup_test_logs():
@@ -22,6 +23,7 @@ def cleanup_test_logs():
     if os.path.exists(TEST_LOG_DIR):
         _cleanup_all_loggers()
         shutil.rmtree(TEST_LOG_DIR)
+
 
 def _cleanup_all_loggers():
     for logger_name in list(logging.Logger.manager.loggerDict.keys()):
@@ -37,9 +39,14 @@ def _cleanup_all_loggers():
 def test_get_logger_returns_same_instance(cleanup_test_logs):
     """Tests that get_logger returns the same logger instance for the same name."""
     logger_name = "test_singleton"
-    logger1 = LoggerManager.get_logger(logger_name, log_file=os.path.join(TEST_LOG_DIR, "singleton.log"))
-    logger2 = LoggerManager.get_logger(logger_name, log_file=os.path.join(TEST_LOG_DIR, "singleton.log"))
+    logger1 = LoggerManager.get_logger(
+        logger_name, log_file=os.path.join(TEST_LOG_DIR, "singleton.log")
+    )
+    logger2 = LoggerManager.get_logger(
+        logger_name, log_file=os.path.join(TEST_LOG_DIR, "singleton.log")
+    )
     assert logger1 is logger2
+
 
 def test_console_and_file_handlers_added(cleanup_test_logs):
     """Tests that both console and file handlers are added to the logger."""
@@ -49,8 +56,13 @@ def test_console_and_file_handlers_added(cleanup_test_logs):
 
     assert len(logger.handlers) == 2, "Logger should have two handlers"
 
-    has_console_handler = any(isinstance(h, logging.StreamHandler) and h.stream == sys.stdout for h in logger.handlers)
-    has_file_handler = any(isinstance(h, logging.FileHandler) and h.baseFilename == os.path.abspath(log_file_path) for h in logger.handlers)
+    has_console_handler = any(
+        isinstance(h, logging.StreamHandler) and h.stream == sys.stdout for h in logger.handlers
+    )
+    has_file_handler = any(
+        isinstance(h, logging.FileHandler) and h.baseFilename == os.path.abspath(log_file_path)
+        for h in logger.handlers
+    )
 
     assert has_console_handler, "Logger should have a console handler"
     assert has_file_handler, "Logger should have a file handler"
@@ -60,7 +72,9 @@ def test_json_log_output_structure(cleanup_test_logs):
     """Tests that file logs are valid JSON when use_json is True and contain expected keys."""
     logger_name = "test_json_output"
     log_file_path = os.path.join(TEST_LOG_DIR, f"{logger_name}.log")
-    logger = LoggerManager.get_logger(logger_name, log_file=log_file_path, use_json=True, level="INFO")
+    logger = LoggerManager.get_logger(
+        logger_name, log_file=log_file_path, use_json=True, level="INFO"
+    )
 
     test_message = "This is a JSON test message."
     extra_data = {"key1": "value1", "key2": 123}
@@ -74,7 +88,7 @@ def test_json_log_output_structure(cleanup_test_logs):
     assert os.path.exists(log_file_path), "Log file was not created"
 
     with open(log_file_path, 'r') as f:
-        log_content = f.readline().strip() # Read the first line of log
+        log_content = f.readline().strip()  # Read the first line of log
 
     assert log_content, "Log file is empty"
 
@@ -110,9 +124,9 @@ def test_colorlog_fallbacks_gracefully(cleanup_test_logs, monkeypatch):
         logger = LoggerManager.get_logger(
             logger_name,
             log_file=log_file_path,
-            use_color=True # Attempt to use color
+            use_color=True,  # Attempt to use color
         )
-        logger.info("Test message without colorlog.") # Should not raise error
+        logger.info("Test message without colorlog.")  # Should not raise error
     except Exception as e:
         pytest.fail(f"Logger initialization or logging failed when colorlog is unavailable: {e}")
 
@@ -124,7 +138,9 @@ def test_colorlog_fallbacks_gracefully(cleanup_test_logs, monkeypatch):
             break
 
     assert console_handler is not None, "Console handler not found."
-    assert isinstance(console_handler.formatter, logging.Formatter),         "Console handler formatter should be a standard logging.Formatter when colorlog is unavailable."
+    assert isinstance(console_handler.formatter, logging.Formatter), (
+        "Console handler formatter should be a standard logging.Formatter when colorlog is unavailable."
+    )
 
     # Check that it's not a ColorLog specific formatter (if ColorLogFormatter was imported and type checkable)
     # Since we cannot directly import ColoredFormatter when it might not exist,
@@ -154,13 +170,15 @@ def test_logfile_created(cleanup_test_logs):
     # Ensure the file handler is closed so the message is flushed
     for handler in logger.handlers:
         if isinstance(handler, logging.FileHandler):
-            handler.close() # Close to ensure flush
+            handler.close()  # Close to ensure flush
 
     assert os.path.exists(log_file_path), "Log file was not created after logging."
 
     with open(log_file_path, 'r') as f:
         content = f.read()
-        assert "This message should create a log file." in content, "Log message not found in the created file."
+        assert "This message should create a log file." in content, (
+            "Log message not found in the created file."
+        )
 
 
 def cleanup_logger(name: str):

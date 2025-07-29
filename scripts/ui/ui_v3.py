@@ -9,9 +9,13 @@ sys.path.append(str(ROOT))
 import streamlit as st
 import os
 from scripts.interface.ask_interface import run_ask
-from scripts.ui.ui_project_manager import render_project_creation, render_config_editor_v2, render_raw_data_upload, render_raw_file_viewer
+from scripts.ui.ui_project_manager import (
+    render_project_creation,
+    render_config_editor_v2,
+    render_raw_data_upload,
+    render_raw_file_viewer,
+)
 from scripts.ui.ui_custom_pipeline import render_custom_pipeline_tab
-
 
 
 st.set_page_config(page_title="RAG-GP UI", layout="wide")
@@ -54,14 +58,18 @@ if section == "Projects":
             all_projects,
             key="project_selector",
             on_change=on_project_change,
-            index=all_projects.index(st.session_state.selected_project) if st.session_state.selected_project in all_projects else 0
+            index=all_projects.index(st.session_state.selected_project)
+            if st.session_state.selected_project in all_projects
+            else 0,
         )
 
         if selected_project_name:
             project_path = base_path / selected_project_name
             st.subheader(f"Project: {selected_project_name}")
 
-            render_config_editor_v2(project_path) # replace with render_config_editor if you want the old version
+            render_config_editor_v2(
+                project_path
+            )  # replace with render_config_editor if you want the old version
             st.markdown("---")
             render_raw_data_upload(project_path)
             st.markdown("---")

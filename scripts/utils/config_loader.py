@@ -8,6 +8,7 @@ class ConfigLoader:
     Loads and provides access to a YAML configuration file.
     Supports nested keys via dot notation.
     """
+
     def __init__(self, path: str | Path):
         self.path = Path(path)
         self.config = self._load()

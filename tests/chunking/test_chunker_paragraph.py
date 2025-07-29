@@ -6,12 +6,7 @@ import re
 import pytest
 
 
-
-DOC_TEXT = (
-    "First paragraph.\n\n"
-    "Second paragraph.\n\n"
-    "Third paragraph."
-)
+DOC_TEXT = "First paragraph.\n\nSecond paragraph.\n\nThird paragraph."
 
 
 def test_force_two_chunks_with_overlap_merge():

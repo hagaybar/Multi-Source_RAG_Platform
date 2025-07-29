@@ -4,6 +4,7 @@ import shutil
 import yaml
 from scripts.core.project_manager import ProjectManager
 
+
 def test_create_project(tmp_path):
     # Setup
     projects_base_dir = tmp_path / "projects"

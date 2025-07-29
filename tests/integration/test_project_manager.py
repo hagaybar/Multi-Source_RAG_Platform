@@ -3,6 +3,7 @@ from pathlib import Path
 import shutil
 from scripts.core.project_manager import ProjectManager
 
+
 def test_project_manager_initialization(tmp_path):
     # Setup: copy minimal config into temp project folder
     project_root = tmp_path / "demo_project"
@@ -26,6 +27,5 @@ paths:
     assert pm.get_faiss_path("pdf").name == "pdf.faiss"
     assert pm.config["project"]["name"] == "demo_project"
     print(f"Temp project created at: {tmp_path}")
-
 
     print("ProjectManager is working ✔")

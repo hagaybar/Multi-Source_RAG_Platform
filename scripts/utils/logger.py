@@ -4,6 +4,7 @@ It features `LoggerManager` for creating and managing logger instances with
 various handlers (file, console) and formats (text, colored, JSON), and
 `JsonLogFormatter` for producing structured JSON logs.
 """
+
 import os
 import sys
 import logging
@@ -12,6 +13,7 @@ from typing import Optional
 
 try:
     from colorlog import ColoredFormatter
+
     COLORLOG_AVAILABLE = True
 except ImportError:
     COLORLOG_AVAILABLE = False
@@ -43,18 +45,21 @@ class LoggerManager:
     The `_loggers` class attribute stores references to already created loggers
     to ensure their singleton nature.
     """
+
     _loggers = {}
     _default_log_dir = "logs"
 
     @classmethod
-    def get_logger(cls, 
-                   name: str,
-                   log_file: Optional[str] = None,
-                   level: str = "DEBUG",
-                   use_json: bool = False,
-                   use_color: bool = True,
-                   task_paths: Optional[object] = None,
-                   run_id: Optional[str] = None) -> logging.Logger:
+    def get_logger(
+        cls,
+        name: str,
+        log_file: Optional[str] = None,
+        level: str = "DEBUG",
+        use_json: bool = False,
+        use_color: bool = True,
+        task_paths: Optional[object] = None,
+        run_id: Optional[str] = None,
+    ) -> logging.Logger:
         """
         Retrieve or create a logger configured for console and file output.
 
@@ -99,7 +104,6 @@ class LoggerManager:
 
         cls._loggers[logger_key] = logger
         return logger
-
 
     @staticmethod
     def _setup_file_handler(filepath: str, level: str, use_json: bool) -> logging.Handler:
@@ -166,7 +170,7 @@ class LoggerManager:
                     'WARNING': 'yellow',
                     'ERROR': 'red',
                     'CRITICAL': 'bold_red',
-                }
+                },
             )
         else:
             return logging.Formatter(fmt, datefmt)
@@ -190,6 +194,7 @@ class JsonLogFormatter(logging.Formatter):
 
     Supports extra data via `extra={"extra_data": {...}}` in logging calls.
     """
+
     def format(self, record: logging.LogRecord) -> str:
         log_record = {
             "timestamp": self.formatTime(record, "%Y-%m-%d %H:%M:%S"),

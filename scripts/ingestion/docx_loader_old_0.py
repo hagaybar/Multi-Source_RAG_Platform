@@ -17,6 +17,7 @@ from scripts.utils.image_utils import (
 
 logger = logging.getLogger("docx_ingestor")
 
+
 def load_docx(path: str | pathlib.Path) -> List[Tuple[str, dict]]:
     """Extract text and image references from a .docx file as (text, metadata) chunks."""
     if not isinstance(path, Path):
@@ -59,9 +60,12 @@ def load_docx(path: str | pathlib.Path) -> List[Tuple[str, dict]]:
                 img_path = image_dir / img_name
                 save_image_blob(image_part.blob, img_path)
                 if image_paths:
-                    print(f"[DEBUG] Paragraph {para_idx} → extracted {len(image_paths)} image(s): {image_paths}")
-                    logger.info(f"[DOCX] [DEBUG] Paragraph {para_idx} → extracted {len(image_paths)} image(s): {image_paths}")
-
+                    print(
+                        f"[DEBUG] Paragraph {para_idx} → extracted {len(image_paths)} image(s): {image_paths}"
+                    )
+                    logger.info(
+                        f"[DOCX] [DEBUG] Paragraph {para_idx} → extracted {len(image_paths)} image(s): {image_paths}"
+                    )
 
                 try:
                     rel_path = img_path.resolve().relative_to((project_root / "input").resolve())
@@ -76,9 +80,10 @@ def load_docx(path: str | pathlib.Path) -> List[Tuple[str, dict]]:
 
         if not (text or image_paths):
             print(f"[DEBUG] Paragraph {para_idx} was skipped — no text and no images recorded.")
-            logger.debug(f"[DOCX] [DEBUG] Paragraph {para_idx} was skipped — no text and no images recorded.")
+            logger.debug(
+                f"[DOCX] [DEBUG] Paragraph {para_idx} was skipped — no text and no images recorded."
+            )
 
-        
         # ✅ Fallback: if no image_paths were recorded but images were saved for this paragraph
         if not image_paths:
             # Matches filenames like: docx_new_example_page15_img0.png
@@ -96,12 +101,12 @@ def load_docx(path: str | pathlib.Path) -> List[Tuple[str, dict]]:
                         image_paths.append(f"cache/images/{p.name}")
                 meta["image_paths"] = image_paths
 
-
-
         if text or image_paths:
             segments.append((text or "[Image-only content]", meta))
 
-    print(f"[INFO] Extracted {sum('image_paths' in m for _, m in segments)} image-attached chunks from {path.name}")
+    print(
+        f"[INFO] Extracted {sum('image_paths' in m for _, m in segments)} image-attached chunks from {path.name}"
+    )
 
     # Add tables
     for tbl_idx, table in enumerate(document.tables, start=1):

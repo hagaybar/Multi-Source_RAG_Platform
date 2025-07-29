@@ -13,9 +13,10 @@ from scripts.utils.image_utils import (
     ensure_image_cache_dir,
     record_image_metadata,
     save_image_pillow,
-    generate_image_filename
+    generate_image_filename,
 )
 from PIL import Image
+
 
 def load_pdf(path: str | Path) -> List[Tuple[str, dict]]:
     if not isinstance(path, Path):
@@ -25,13 +26,14 @@ def load_pdf(path: str | Path) -> List[Tuple[str, dict]]:
         with pdfplumber.open(path) as pdf:
             if not pdf.pages:
                 raise UnsupportedFileError(f"No pages found in PDF: {path}")
-            
 
             # 🔍 Infer project root and name
             project_root = infer_project_root(path)
-            project_name = project_root.name              # ✅ CORRECT
+            project_name = project_root.name  # ✅ CORRECT
             image_dir = get_project_image_dir(project_name)
-            print(f"[loader] Writing image to: {image_dir}")  # Should be inside data/projects/{project}/input/cache/images
+            print(
+                f"[loader] Writing image to: {image_dir}"
+            )  # Should be inside data/projects/{project}/input/cache/images
             doc_id = str(path)
             file_stem = path.stem
 
@@ -73,7 +75,9 @@ def load_pdf(path: str | Path) -> List[Tuple[str, dict]]:
                             record_image_metadata(base_meta, img_path, project_root)
 
                         except Exception as e:
-                            print(f"Warning! [PDF] Failed to extract image on page {page_number}: {e}")
+                            print(
+                                f"Warning! [PDF] Failed to extract image on page {page_number}: {e}"
+                            )
                             continue
 
                 # ✅ Add chunk once per page, with all images and text
@@ -97,12 +101,18 @@ def load_pdf(path: str | Path) -> List[Tuple[str, dict]]:
         if isinstance(e.args[0], PDFPasswordIncorrect):
             raise UnsupportedFileError(f"PDF {path} is encrypted and requires a password.") from e
         elif isinstance(e.args[0], PDFSyntaxError):
-            raise UnsupportedFileError(f"Failed to parse PDF {path}, it might be corrupted: {e.args[0]}") from e
+            raise UnsupportedFileError(
+                f"Failed to parse PDF {path}, it might be corrupted: {e.args[0]}"
+            ) from e
         else:
-            raise UnsupportedFileError(f"An unexpected PDF processing error occurred with {path}: {e.args[0]}") from e
+            raise UnsupportedFileError(
+                f"An unexpected PDF processing error occurred with {path}: {e.args[0]}"
+            ) from e
 
     except UnsupportedFileError:
         raise
 
     except Exception as e:
-        raise UnsupportedFileError(f"An unexpected error occurred while processing PDF {path}: {e}") from e
+        raise UnsupportedFileError(
+            f"An unexpected error occurred while processing PDF {path}: {e}"
+        ) from e

@@ -1,8 +1,9 @@
 import streamlit as st
 
+
 def render_answer_with_direction(answer: str):
     # Simple heuristic: Hebrew starts with Unicode range 0x0590–0x05FF
-    is_rtl = any('\u0590' <= char <= '\u05FF' for char in answer)
+    is_rtl = any('\u0590' <= char <= '\u05ff' for char in answer)
 
     direction = "rtl" if is_rtl else "ltr"
     styled_html = f"""
@@ -17,7 +18,8 @@ def detect_text_direction(text: str) -> str:
     """
     Detects directionality of a string: 'rtl' for Hebrew, 'ltr' otherwise.
     """
-    return "rtl" if any('\u0590' <= char <= '\u05FF' for char in text) else "ltr"
+    return "rtl" if any('\u0590' <= char <= '\u05ff' for char in text) else "ltr"
+
 
 def render_text_block(text: str):
     """

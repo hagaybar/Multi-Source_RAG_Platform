@@ -48,7 +48,7 @@ def describe_image(image_path: str, model: dict) -> dict:
             "cost": 0.0,
             "prompt_tokens": 0,
             "completion_tokens": 0,
-            "total_tokens": 0
+            "total_tokens": 0,
         }
 
     while retries < MAX_RETRIES:
@@ -57,11 +57,12 @@ def describe_image(image_path: str, model: dict) -> dict:
                 model=model_name,
                 messages=[
                     {"role": "system", "content": "You are an assistant that describes images."},
-                    {"role": "user", "content": [
-                        {"type": "image_url", "image_url": {"url": data_url}}
-                    ]}
+                    {
+                        "role": "user",
+                        "content": [{"type": "image_url", "image_url": {"url": data_url}}],
+                    },
                 ],
-                timeout=900.0
+                timeout=900.0,
             )
 
             usage = response.usage
@@ -70,8 +71,8 @@ def describe_image(image_path: str, model: dict) -> dict:
             total_tokens = usage.total_tokens
 
             cost = (
-                prompt_tokens / 1000 * model["price_input"] +
-                completion_tokens / 1000 * model["price_output"]
+                prompt_tokens / 1000 * model["price_input"]
+                + completion_tokens / 1000 * model["price_output"]
             )
 
             return {
@@ -79,20 +80,20 @@ def describe_image(image_path: str, model: dict) -> dict:
                 "cost": cost,
                 "prompt_tokens": prompt_tokens,
                 "completion_tokens": completion_tokens,
-                "total_tokens": total_tokens
+                "total_tokens": total_tokens,
             }
 
         except OpenAIError as e:
             retries += 1
             print(f"[ERROR] {model_name} on {image_path}: {e} (retry {retries})")
-            time.sleep(RETRY_DELAY_BASE * (2 ** retries))
+            time.sleep(RETRY_DELAY_BASE * (2**retries))
 
     return {
         "description": "ERROR: Max retries exceeded",
         "cost": 0.0,
         "prompt_tokens": 0,
         "completion_tokens": 0,
-        "total_tokens": 0
+        "total_tokens": 0,
     }
 
 
@@ -120,7 +121,7 @@ def run_batch():
                 "prompt_tokens": result_data["prompt_tokens"],
                 "completion_tokens": result_data["completion_tokens"],
                 "total_tokens": result_data["total_tokens"],
-                "cost_usd": round(result_data["cost"], 6)
+                "cost_usd": round(result_data["cost"], 6),
             }
 
             results.append(result_entry)

@@ -1,4 +1,6 @@
 import extract_msg, email, email.policy, pathlib
+
+
 def msg_to_eml(msg_path: str | pathlib.Path, eml_path: str | pathlib.Path):
     m = extract_msg.Message(msg_path)
     eml = email.message.EmailMessage()
