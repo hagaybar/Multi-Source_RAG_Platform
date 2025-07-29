@@ -1,10 +1,11 @@
-import os
 import json
+import logging
+import os
 import time
 from pathlib import Path
-from typing import List, Dict, Optional
+from typing import Dict, List, Optional
+
 from openai import OpenAI
-import logging
 
 # from scripts.utils.logger import LoggerManager
 

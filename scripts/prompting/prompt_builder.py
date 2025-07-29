@@ -1,5 +1,6 @@
 import logging
 from typing import List
+
 from scripts.chunking.models import Chunk  # Assuming Chunk model is here
 
 logger = logging.getLogger(__name__)
