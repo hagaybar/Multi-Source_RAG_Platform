@@ -6,13 +6,18 @@ from scripts.chunking.models import Chunk  # Assuming Chunk model is here
 logger = logging.getLogger(__name__)
 
 DEFAULT_PROMPT_TEMPLATE = """
-You are an expert assistant helping library systems librarians troubleshoot, configure, and integrate tools like Alma, Primo, SAML authentication, APIs, and other library technologies.
+You are an expert assistant helping library systems librarians troubleshoot,
+configure, and integrate tools like Alma, Primo, SAML authentication, APIs,
+and other library technologies.
 
-Your job is to answer practical questions based ONLY on the provided context. If the context does not include the answer, clearly state that.
+Your job is to answer practical questions based ONLY on the provided context.
+If the context does not include the answer, clearly state that.
 
-Use citations to support your answer, referring to sources using their IDs (e.g., [doc_id_1], [doc_id_2]).
+Use citations to support your answer, referring to sources using their IDs
+(e.g., [doc_id_1], [doc_id_2]).
 
-If the user's question is in Hebrew, please answer in Hebrew. Otherwise, answer in the same language as the question.
+If the user's question is in Hebrew, please answer in Hebrew. Otherwise,
+answer in the same language as the question.
 
 ---
 
@@ -32,7 +37,8 @@ Answer:
 
 class PromptBuilder:
     """
-    Builds prompts for the LMM by combining a user query with retrieved context chunks.
+    Builds prompts for the LMM by combining a user query with retrieved
+    context chunks.
     """
 
     def __init__(self, template: str | None = None):
@@ -41,14 +47,19 @@ class PromptBuilder:
 
         Args:
             template (str, optional): A custom prompt template.
-                                      If None, DEFAULT_PROMPT_TEMPLATE is used.
-                                      Must contain {context_str} and {query_str} placeholders.
+                If None, DEFAULT_PROMPT_TEMPLATE is used.
+                Must contain {context_str} and {query_str} placeholders.
         """
         self.template = template or DEFAULT_PROMPT_TEMPLATE
-        if "{context_str}" not in self.template or "{query_str}" not in self.template:
-            logger.error("Prompt template must include {context_str} and {query_str} placeholders.")
+        if ("{context_str}" not in self.template or
+                "{query_str}" not in self.template):
+            logger.error(
+                "Prompt template must include {context_str} and "
+                "{query_str} placeholders."
+            )
             raise ValueError(
-                "Prompt template must include {context_str} and {query_str} placeholders."
+                "Prompt template must include {context_str} and "
+                "{query_str} placeholders."
             )
         logger.info("PromptBuilder initialized.")
 
@@ -58,7 +69,8 @@ class PromptBuilder:
 
         Args:
             query (str): The user's query.
-            context_chunks (List[Chunk]): A list of context chunks retrieved from the RAG system.
+            context_chunks (List[Chunk]): A list of context chunks retrieved
+                from the RAG system.
 
         Returns:
             str: The fully formatted prompt string.
@@ -70,14 +82,21 @@ class PromptBuilder:
             context_items = []
             for i, chunk in enumerate(context_chunks):
                 # Handle doc_id safely
-                source_id = chunk.meta.get("source_filepath") or getattr(chunk, "doc_id", "unknown")
+                source_id = (
+                    chunk.meta.get("source_filepath") or
+                    getattr(chunk, "doc_id", "unknown")
+                )
                 source_id_str = str(source_id).replace("\n", " ").strip()
 
                 # Use text or description depending on chunk type
-                text = getattr(chunk, "text", None) or getattr(chunk, "description", None)
+                text = (
+                    getattr(chunk, "text", None) or
+                    getattr(chunk, "description", None)
+                )
                 if not text:
                     logger.warning(
-                        f"Skipping chunk with no usable content: {getattr(chunk, 'id', 'N/A')}"
+                        f"Skipping chunk with no usable content: "
+                        f"{getattr(chunk, 'id', 'N/A')}"
                     )
                     continue
 
@@ -92,18 +111,25 @@ class PromptBuilder:
             context_str = "\n\n---\n\n".join(context_items)
 
         logger.info(
-            f"Building prompt for query: '{query}' with {len(context_chunks)} context chunks."
+            f"Building prompt for query: '{query}' with "
+            f"{len(context_chunks)} context chunks."
         )
 
         # Replace placeholders in the template
         try:
-            final_prompt = self.template.format(context_str=context_str, query_str=query)
+            final_prompt = self.template.format(
+                context_str=context_str, query_str=query
+            )
         except KeyError as e:
             logger.error(
-                f"Missing placeholder in prompt template: {e}. Ensure template has {{context_str}} and {{query_str}}."
+                f"Missing placeholder in prompt template: {e}. Ensure template "
+                f"has {{context_str}} and {{query_str}}."
             )
             # Fallback or re-raise, depending on desired robustness
-            raise ValueError(f"Failed to format prompt template due to missing placeholder: {e}")
+            raise ValueError(
+                f"Failed to format prompt template due to missing "
+                f"placeholder: {e}"
+            )
 
         logger.debug(f"Generated prompt: {final_prompt}")
         return final_prompt
@@ -145,7 +171,8 @@ if __name__ == '__main__':
         builder_default = PromptBuilder()
         prompt_default = builder_default.build_prompt(user_query, context_chunks)
         logger.info(
-            f"\n--- Generated Prompt (Default Template) ---\n{prompt_default}\n----------------------------------------"
+            f"\n--- Generated Prompt (Default Template) ---\n"
+            f"{prompt_default}\n----------------------------------------"
         )
 
         # Test with a custom template
@@ -155,28 +182,37 @@ if __name__ == '__main__':
         {context_str}
         ***
 
-        Based on the information above, please answer the question: {query_str}
+        Based on the information above, please answer the question:
+        {query_str}
         Remember to cite your sources as [Source ID string].
         """
         builder_custom = PromptBuilder(template=CUSTOM_TEMPLATE)
         prompt_custom = builder_custom.build_prompt(user_query, context_chunks)
         logger.info(
-            f"\n--- Generated Prompt (Custom Template) ---\n{prompt_custom}\n---------------------------------------"
+            f"\n--- Generated Prompt (Custom Template) ---\n"
+            f"{prompt_custom}\n---------------------------------------"
         )
 
         # Test with no context
         prompt_no_context = builder_default.build_prompt("What is your name?", [])
         logger.info(
-            f"\n--- Generated Prompt (No Context) ---\n{prompt_no_context}\n------------------------------------"
+            f"\n--- Generated Prompt (No Context) ---\n"
+            f"{prompt_no_context}\n------------------------------------"
         )
 
         # Test template validation (missing placeholder)
         try:
-            PromptBuilder(template="Query: {query_str}")  # Missing {context_str}
+            # Missing {context_str}
+            PromptBuilder(template="Query: {query_str}")
         except ValueError as e:
-            logger.info(f"Successfully caught expected error for bad template: {e}")
+            logger.info(
+                f"Successfully caught expected error for bad template: {e}"
+            )
 
     except Exception as e:
-        logger.error(f"An error occurred during PromptBuilder test: {e}", exc_info=True)
+        logger.error(
+            f"An error occurred during PromptBuilder test: {e}",
+            exc_info=True
+        )
 
     logger.info("PromptBuilder direct test finished.")
