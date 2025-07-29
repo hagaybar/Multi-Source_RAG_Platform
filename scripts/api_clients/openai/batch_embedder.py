@@ -1,13 +1,12 @@
 import os
 import json
 import time
-import tempfile
 from pathlib import Path
 from typing import List, Dict, Optional
 from openai import OpenAI
 import logging
 
-from scripts.utils.logger import LoggerManager
+# from scripts.utils.logger import LoggerManager
 
 
 class BatchEmbedder:
@@ -26,7 +25,7 @@ class BatchEmbedder:
         # self.logger = LoggerManager.get_logger("batch_embedder")
         self.api_key = api_key or os.getenv("OPEN_AI")
 
-        print(f"DEBUG: BatchEmbedder init parameters:")
+        print("DEBUG: BatchEmbedder init parameters:")
         print(f"DEBUG:   - model: {self.model}")
         print(f"DEBUG:   - output_dir: {self.output_dir}")
         print(f"DEBUG:   - api_key provided: {bool(api_key)}")
@@ -59,7 +58,7 @@ class BatchEmbedder:
         print("DEBUG: BatchEmbedder.run() *** MAIN ENTRY POINT ***")
         print("=" * 120)
 
-        print(f"DEBUG: BatchEmbedder.run() called with:")
+        print("DEBUG: BatchEmbedder.run() called with:")
         print(f"DEBUG:   - texts count: {len(texts)}")
         print(f"DEBUG:   - ids provided: {bool(ids)}")
         print(f"DEBUG:   - model: {self.model}")
@@ -116,7 +115,7 @@ class BatchEmbedder:
             raise
 
         self.logger.info(f"Submitted OpenAI batch job: {batch.id}")
-        print(f"DEBUG: Starting to wait for batch completion...")
+        print("DEBUG: Starting to wait for batch completion...")
 
         batch = self._wait_for_completion(batch.id)
         print(f"DEBUG: Batch completion wait finished with status: {batch.status}")

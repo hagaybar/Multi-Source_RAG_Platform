@@ -21,20 +21,21 @@ dependencies = [
     "pandas (>=2.3.0,<3.0.0)",
     "streamlit (>=1.46.1,<2.0.0)",
     "werkzeug (>=3.1.3,<4.0.0)",
-    "pylint (>=3.3.7,<4.0.0)"
+    "pylint (>=3.3.7,<4.0.0)",
+    "black (>=25.1.0,<26.0.0)"
     ]
    
 
 [tool.ruff]
-line-length = 100
-select = ["E", "F"]
-ignore = ["E402"]
-
+line-length = 100  # or lower for more aggressive wrapping
 
 [tool.ruff.format]
-# Optional formatting options
 docstring-code-format = true
-quote-style = "preserve"  # or "single" / "double"
+quote-style = "preserve"
+
+[tool.ruff.lint]
+select = ["E", "F"]
+ignore = [] 
 
 [tool.poetry]
 package-mode = false
