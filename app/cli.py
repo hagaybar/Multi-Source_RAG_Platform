@@ -31,8 +31,12 @@ from scripts.utils.logger import LoggerManager
 from scripts.core.project_manager import ProjectManager
 from scripts.retrieval.retrieval_manager import RetrievalManager
 from scripts.prompting.prompt_builder import PromptBuilder  # Added for ask command
-from scripts.api_clients.openai.completer import OpenAICompleter  # Added for ask command
-from scripts.agents.image_insight_agent import ImageInsightAgent  # Added for index_images command
+from scripts.api_clients.openai.completer import (
+    OpenAICompleter,  # Added for ask command
+)
+from scripts.agents.image_insight_agent import (
+    ImageInsightAgent,  # Added for index_images command
+)
 
 app = typer.Typer()
 
@@ -42,15 +46,21 @@ cli_logger = LoggerManager.get_logger("cli_app")
 
 @app.command()
 def ingest(
-    folder_path: pathlib.Path = typer.Argument(..., help="Path to the folder to ingest."),
-    chunk: bool = typer.Option(False, "--chunk", help="Enable chunking of ingested documents."),
+    folder_path: pathlib.Path = typer.Argument(
+        ..., help="Path to the folder to ingest."
+    ),
+    chunk: bool = typer.Option(
+        False, "--chunk", help="Enable chunking of ingested documents."
+    ),
 ):
     """
     Ingests documents from the specified folder and optionally chunks them.
     """
 
     project = ProjectManager(folder_path)
-    ingestion_manager = IngestionManager(log_file=str(project.get_log_path("ingestion")))
+    ingestion_manager = IngestionManager(
+        log_file=str(project.get_log_path("ingestion"))
+    )
     chunker_logger = LoggerManager.get_logger(
         "chunker_project", log_file=str(project.get_log_path("chunker"))
     )
@@ -62,11 +72,15 @@ def ingest(
 
         # Add these debug lines:
     chunker_logger.info(f"Chunker log path: {project.get_log_path('chunker')}")
-    chunker_logger.info(f"Chunker log path as string: {str(project.get_log_path('chunker'))}")
+    chunker_logger.info(
+        f"Chunker log path as string: {str(project.get_log_path('chunker'))}"
+    )
     chunker_logger.info("Checking chunker logger handlers...")
     for handler in chunker_logger.handlers:
         if hasattr(handler, 'baseFilename'):
-            chunker_logger.info(f"Chunker FileHandler baseFilename: {handler.baseFilename}")
+            chunker_logger.info(
+                f"Chunker FileHandler baseFilename: {handler.baseFilename}"
+            )
     raw_docs = ingestion_manager.ingest_path(folder_path)
 
     # Changed "documents" to "text segments"
@@ -101,13 +115,18 @@ def ingest(
                 # BaseChunker will raise error if doc_type is missing.
 
             try:
-                # Ensure raw_doc.metadata contains 'doc_id' as expected by chunker_v3.py.
-                # The 'doc_id' key should ideally be populated by the IngestionManager or here if not.
-                # For now, we rely on 'source_filepath' being in metadata and chunker_v3 using meta.get('doc_id').
-                # Let's ensure 'doc_id' is explicitly set in the metadata passed to the chunker for clarity.
+                # Ensure raw_doc.metadata contains 'doc_id' as expected by
+                # chunker_v3.py.
+                # The 'doc_id' key should ideally be populated by the
+                # IngestionManager or here if not.
+                # For now, we rely on 'source_filepath' being in metadata and
+                # chunker_v3 using meta.get('doc_id').
+                # Let's ensure 'doc_id' is explicitly set in the metadata
+                # passed to the chunker for clarity.
                 current_meta = raw_doc.metadata.copy()
                 current_meta['doc_id'] = (
-                    doc_id  # doc_id is from raw_doc.metadata.get('source_filepath', ...)
+                    doc_id  # doc_id is from
+                    # raw_doc.metadata.get('source_filepath', ...)
                 )
 
                 document_chunks = chunker_split(
@@ -117,16 +136,20 @@ def ingest(
                     # clean_options will use default from chunker_v3.split
                 )
                 print(
-                    f"[CHUNK] {raw_doc.metadata.get('source_filepath')} => {raw_doc.metadata.get('doc_type')}"
+                    f"[CHUNK] {raw_doc.metadata.get('source_filepath')} => "
+                    f"{raw_doc.metadata.get('doc_type')}"
                 )
                 all_chunks.extend(document_chunks)
 
             except ValueError as e:
-                error_msg = f"Skipping chunking for a segment from {doc_id} due to error: {e}"
+                error_msg = (
+                    f"Skipping chunking for a segment from {doc_id} due to error: {e}"
+                )
                 print(error_msg)
             except Exception as e:
                 error_msg = (
-                    f"An unexpected error occurred while chunking a segment from {doc_id}: {e}"
+                    f"An unexpected error occurred while chunking a segment "
+                    f"from {doc_id}: {e}"
                 )
                 print(error_msg)
 
@@ -143,11 +166,16 @@ def ingest(
                 output_path = folder_path / "input" / f"chunks_{doc_type}.tsv"
                 output_path.parent.mkdir(parents=True, exist_ok=True)
                 try:
-                    with open(output_path, "w", newline="", encoding="utf-8") as tsvfile:
+                    with open(
+                        output_path, "w", newline="", encoding="utf-8"
+                    ) as tsvfile:
                         writer = csv.writer(tsvfile, delimiter="\t")
-                        header = ['chunk_id', 'doc_id', 'text', 'token_count', 'meta_json']
+                        header = [
+                            'chunk_id', 'doc_id', 'text', 'token_count', 'meta_json'
+                        ]
                         writer.writerow(header)
-                        for chk_item in chunks_list:  # Renamed variable to avoid conflict
+                        for chk_item in chunks_list:  # Renamed variable to
+                            # avoid conflict
                             meta_json_str = json.dumps(chk_item.meta)
                             writer.writerow(
                                 [
@@ -174,7 +202,9 @@ def embed(
         False, "--a-b", "--async-batch", help="Use OpenAI async batch embedding"
     ),
     with_image_index: bool = typer.Option(
-        False, "--with-image-index", help="Run image enrichment and indexing after embedding"
+        False,
+        "--with-image-index",
+        help="Run image enrichment and indexing after embedding"
     ),
 ) -> None:
     """
@@ -214,8 +244,12 @@ def embed(
         doc_types = ["pptx", "pdf", "docx"]  # You can extend this as needed
 
         for doc_type in doc_types:
-            enrich_cmd = f"python cli.py enrich-images {project_dir} --doc-type {doc_type}"
-            index_cmd = f"python cli.py index-images {project_dir} --doc-type {doc_type}"
+            enrich_cmd = (
+                f"python cli.py enrich-images {project_dir} --doc-type {doc_type}"
+            )
+            index_cmd = (
+                f"python cli.py index-images {project_dir} --doc-type {doc_type}"
+            )
 
             cli_logger.info(f"Running: {enrich_cmd}")
             subprocess.call(enrich_cmd, shell=True)
@@ -251,7 +285,9 @@ def retrieve(
         print("No results found.")
     for i, chunk_item in enumerate(results, 1):  # Renamed variable
         print(
-            f"\n[{i}] From {chunk_item.meta.get('_retriever')} | score: {chunk_item.meta.get('similarity', 0):.3f} | doc_id: {chunk_item.doc_id}"
+            f"\n[{i}] From {chunk_item.meta.get('_retriever')} | "
+            f"score: {chunk_item.meta.get('similarity', 0):.3f} | "
+            f"doc_id: {chunk_item.doc_id}"
         )
         source_filepath = chunk_item.meta.get('source_filepath', 'N/A')
         print(f"    Source File: {source_filepath}")
@@ -267,10 +303,13 @@ def ask(
     project_path: str = typer.Argument(..., help="Path to the RAG project directory."),
     query: str = typer.Argument(..., help="Your question to the RAG system."),
     top_k: int = typer.Option(5, help="Number of context chunks to retrieve."),
-    temperature: float = typer.Option(0.7, help="LLM temperature for response generation."),
+    temperature: float = typer.Option(
+        0.7, help="LLM temperature for response generation."
+    ),
     max_tokens: int = typer.Option(500, help="LLM maximum tokens for the response."),
     model_name: str = typer.Option(
-        "gpt-3.5-turbo", help="OpenAI model to use for generating the answer (via LiteLLM)."
+        "gpt-3.5-turbo",
+        help="OpenAI model to use for generating the answer (via LiteLLM)."
     ),
 ):
     """
@@ -291,15 +330,19 @@ def ask(
 
         # 1. Retrieve context
         retrieval_manager = RetrievalManager(project)
-        cli_logger.info(f"RetrievalManager initialized. Retrieving top {top_k} chunks for query...")
+        cli_logger.info(
+            f"RetrievalManager initialized. Retrieving top {top_k} chunks for query..."
+        )
         retrieved_chunks = retrieval_manager.retrieve(query=query, top_k=top_k)
 
         if not retrieved_chunks:
             cli_logger.warning(
-                "No context chunks retrieved. Answering based on query alone might be difficult or impossible."
+                "No context chunks retrieved. Answering based on query alone might "
+                "be difficult or impossible."
             )
             print("\nWarning: No relevant context documents were found for your query.")
-            # Decide if to proceed or exit. For now, proceed, LMM will be told context is empty.
+            # Decide if to proceed or exit. For now, proceed, LMM will be told
+            # context is empty.
         else:
             cli_logger.info(f"Retrieved {len(retrieved_chunks)} chunks.")
             print(f"\n--- Retrieved {len(retrieved_chunks)} context chunks ---")
@@ -311,26 +354,32 @@ def ask(
                     else ""
                 )
                 print(
-                    f"  [{i}] Source: {source_id}{page_info} (Score: {chunk_item.meta.get('similarity', 0):.3f})"
+                    f"  [{i}] Source: {source_id}{page_info} "
+                    f"(Score: {chunk_item.meta.get('similarity', 0):.3f})"
                 )
-                # print(f"      Text: {chunk_item.text[:100].strip()}...") # Optional: print chunk text preview
+                # print(f"      Text: {chunk_item.text[:100].strip()}...")
+                # Optional: print chunk text preview
 
         # 2. Build prompt
         prompt_builder = PromptBuilder()  # Uses default template
         cli_logger.info("PromptBuilder initialized.")
-        prompt_str = prompt_builder.build_prompt(query=query, context_chunks=retrieved_chunks)
+        prompt_str = prompt_builder.build_prompt(
+            query=query, context_chunks=retrieved_chunks
+        )
         cli_logger.info(f"Prompt built. Length: {len(prompt_str)} chars.")
         # cli_logger.debug(f"Generated Prompt:\n{prompt_str}") # Potentially very long
 
         # 3. Get LMM completion
-        # API key for OpenAICompleter is handled internally (expects OPENAI_API_KEY env var)
+        # API key for OpenAICompleter is handled internally
+        # (expects OPENAI_API_KEY env var)
         try:
             completer = OpenAICompleter(model_name=model_name)
             cli_logger.info(f"OpenAICompleter initialized for model {model_name}.")
         except ValueError as e:
             cli_logger.error(f"Failed to initialize OpenAICompleter: {e}")
             print(
-                f"\nError: Could not initialize the LLM completer. Ensure OPENAI_API_KEY is set. Details: {e}"
+                f"\nError: Could not initialize the LLM completer. "
+                f"Ensure OPENAI_API_KEY is set. Details: {e}"
             )
             raise typer.Exit(code=1)
 
@@ -366,13 +415,17 @@ def ask(
                     else ""
                 )
 
-                # Create a unique identifier for the source display if needed, e.g. combining path and page
+                # Create a unique identifier for the source display if needed,
+                # e.g. combining path and page
                 display_source = f"{source_id}{page_info}"
                 if display_source not in unique_sources:
                     print(f"  - {display_source} (Retrieved as context chunk {i})")
                     unique_sources.add(display_source)
         else:
-            print("\nNo specific sources were retrieved to form the context for this query.")
+            print(
+                "\nNo specific sources were retrieved to form the context "
+                "for this query."
+            )
 
     except Exception as e:
         cli_logger.error(f"An error occurred in the 'ask' command: {e}", exc_info=True)
@@ -403,14 +456,18 @@ def config(project_dir: Path) -> None:
 
         if isinstance(embedding_config, dict):
             use_async_batch = embedding_config.get('use_async_batch', 'NOT_FOUND')
-            cli_logger.info(f"use_async_batch: {use_async_batch} (type: {type(use_async_batch)})")
+            cli_logger.info(
+                f"use_async_batch: {use_async_batch} (type: {type(use_async_batch)})"
+            )
             print(f"use_async_batch: {use_async_batch} (type: {type(use_async_batch)})")
 
 
 @app.command()
 def enrich_images(
     project_path: Path = typer.Argument(..., help="Path to the project folder."),
-    doc_type: str = typer.Option("pptx", help="Document type to enrich (e.g., pptx, pdf, docx)"),
+    doc_type: str = typer.Option(
+        "pptx", help="Document type to enrich (e.g., pptx, pdf, docx)"
+    ),
     overwrite: bool = typer.Option(
         False, help="Overwrite original TSV instead of saving to /enriched"
     ),
@@ -424,7 +481,9 @@ def enrich_images(
 
     input_tsv = project_path / "input" / f"chunks_{doc_type}.tsv"
     output_dir = (
-        (project_path / "input" / "enriched") if not overwrite else (project_path / "input")
+        (project_path / "input" / "enriched")
+        if not overwrite
+        else (project_path / "input")
     )
     output_dir.mkdir(parents=True, exist_ok=True)
     output_tsv = output_dir / f"chunks_{doc_type}.tsv"
@@ -438,7 +497,13 @@ def enrich_images(
             if len(row) < 5:
                 continue
             meta = json.loads(row[4])
-            chunk = Chunk(id=row[0], doc_id=row[1], text=row[2], token_count=int(row[3]), meta=meta)
+            chunk = Chunk(
+                id=row[0],
+                doc_id=row[1],
+                text=row[2],
+                token_count=int(row[3]),
+                meta=meta,
+            )
 
             # Run only if image_path exists
             result = agent.run(chunk, project)
@@ -450,7 +515,13 @@ def enrich_images(
         writer.writerow(['chunk_id', 'doc_id', 'text', 'token_count', 'meta_json'])
         for chunk in enriched_chunks:
             writer.writerow(
-                [chunk.id, chunk.doc_id, chunk.text, chunk.token_count, json.dumps(chunk.meta)]
+                [
+                    chunk.id,
+                    chunk.doc_id,
+                    chunk.text,
+                    chunk.token_count,
+                    json.dumps(chunk.meta),
+                ]
             )
 
     print(f"✅ Enriched {len(enriched_chunks)} chunks. Output written to: {output_tsv}")
@@ -459,10 +530,13 @@ def enrich_images(
 @app.command()
 def index_images(
     project_path: Path = typer.Argument(..., help="Path to the RAG project directory."),
-    doc_type: str = typer.Option("pptx", help="Document type to read enriched chunks from"),
+    doc_type: str = typer.Option(
+        "pptx", help="Document type to read enriched chunks from"
+    ),
 ):
     """
-    Index enriched image summaries (ImageChunks) into image_index.faiss and image_metadata.jsonl.
+    Index enriched image summaries (ImageChunks) into image_index.faiss and
+    image_metadata.jsonl.
     """
     import csv
     import json
@@ -504,7 +578,9 @@ def index_images(
                 )
 
     indexer.run(image_chunks)
-    typer.echo(f"✅ Indexed {len(image_chunks)} image chunks into FAISS and metadata JSONL.")
+    typer.echo(
+        f"✅ Indexed {len(image_chunks)} image chunks into FAISS and metadata JSONL."
+    )
 
 
 if __name__ == "__main__":
