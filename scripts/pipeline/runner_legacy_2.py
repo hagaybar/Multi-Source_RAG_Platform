@@ -106,7 +106,9 @@ class PipelineRunner:
 
     def step_ingest(self, path: Path = None, **kwargs) -> Iterator[str]:
         yield "📥 Starting ingestion..."
-        ingestion_manager = IngestionManager(log_file=self.project.get_log_path("ingestion"))
+        ingestion_manager = IngestionManager(
+            log_file=self.project.get_log_path("ingestion")
+        )
 
         path = path or self.project.input_dir / "raw"
         if not path.exists():
@@ -131,7 +133,9 @@ class PipelineRunner:
                 new_docs.append(doc)
                 self.seen_hashes.add(doc_hash)
             else:
-                self.logger.info(f"Duplicate skipped: {doc.metadata.get('source_filepath')}")
+                self.logger.info(
+                    f"Duplicate skipped: {doc.metadata.get('source_filepath')}"
+                )
 
         self.raw_docs = new_docs
         yield f"✅ Ingested {len(new_docs)} unique documents from {path.name}"
@@ -155,15 +159,19 @@ class PipelineRunner:
             meta["doc_id"] = doc_id
             # Debug info logged instead of printed
             self.logger.debug(
-                f"Processing doc_id: {doc_id}, paragraph: {meta.get('paragraph_number')}, "
+                f"Processing doc_id: {doc_id}, paragraph: "
+                f"{meta.get('paragraph_number')}, "
                 f"image_paths: {meta.get('image_paths')}"
             )
 
             try:
                 if "image_paths" in meta:
-                    self.logger.debug(f"Passing image_paths for {doc_id}: {meta['image_paths']}")
                     self.logger.debug(
-                        f"Paragraph {meta.get('paragraph_number')} - images: {meta['image_paths']}"
+                        f"Passing image_paths for {doc_id}: {meta['image_paths']}"
+                    )
+                    self.logger.debug(
+                        f"Paragraph {meta.get('paragraph_number')} - images: "
+                        f"{meta['image_paths']}"
                     )
                 chunks = chunk_text(doc.content, meta)
                 all_chunks.extend(chunks)
@@ -345,7 +353,7 @@ class PipelineRunner:
             image_chunks = []
             with open(file_path, encoding="utf-8") as f:
                 reader = csv.reader(f, delimiter="\t")
-                header = next(reader)
+                next(reader)  # Skip header
                 for row in reader:
                     if len(row) < 5:
                         continue
@@ -442,7 +450,6 @@ class PipelineRunner:
 
             for i, chunk in enumerate(chunks, 1):
                 doc_id = chunk.doc_id
-                source = chunk.meta.get("source_filepath", "N/A")
                 sim = chunk.meta.get("similarity", 0)
                 preview = chunk.text.strip()[:80].replace("\n", " ")
                 yield f"[{i}] 📄 {doc_id} (score={sim:.3f}) → {preview}"

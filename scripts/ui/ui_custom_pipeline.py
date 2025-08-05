@@ -92,7 +92,7 @@ def render_custom_pipeline_tab():
             else:
                 # st.write("▶️ About to register these steps:", selected_steps)
                 runner.add_step(step)
-                # Note: add_step(name, **kwargs) queues up your steps :contentReference[oaicite:2]{index=2}
+                # Note: add_step(name, **kwargs) queues up your steps
 
         # 4️⃣ Execute & stream logs
 

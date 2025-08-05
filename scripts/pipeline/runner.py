@@ -81,7 +81,9 @@ class PipelineRunner:
         """
         method_name = f"step_{name}"
         if not hasattr(self, method_name):
-            raise ValueError(f"Step '{name}' is not implemented (missing method: {method_name})")
+            raise ValueError(
+                f"Step '{name}' is not implemented (missing method: {method_name})"
+            )
 
         self.steps.append((name, kwargs))
         self.logger.info("Step added: %s %s", name, kwargs)
@@ -139,7 +141,9 @@ class PipelineRunner:
         """
         yield "📥 Starting ingestion..."
 
-        ingestion_manager = IngestionManager(log_file=self.project.get_log_path("ingestion"))
+        ingestion_manager = IngestionManager(
+            log_file=self.project.get_log_path("ingestion")
+        )
         path = path or self.project.input_dir / "raw"
 
         if not path.exists():
@@ -165,7 +169,9 @@ class PipelineRunner:
                 new_docs.append(doc)
                 self.seen_hashes.add(doc_hash)
             else:
-                self.logger.info("Duplicate skipped: %s", doc.metadata.get("source_filepath"))
+                self.logger.info(
+                    "Duplicate skipped: %s", doc.metadata.get("source_filepath")
+                )
 
         self.raw_docs = new_docs
         yield f"✅ Ingested {len(new_docs)} unique documents from {path.name}"
@@ -464,7 +470,7 @@ class PipelineRunner:
             try:
                 with open(file_path, encoding="utf-8") as f:
                     reader = csv.reader(f, delimiter="\t")
-                    header = next(reader)
+                    next(reader)  # Skip header
 
                     for row in reader:
                         if len(row) < 5:
@@ -521,7 +527,10 @@ class PipelineRunner:
                 yield f"❌ Indexing failed for {doc_type}: {e}"
 
         if count_total:
-            yield f"🧠 Image indexing complete. Total indexed: {count_total}, skipped: {count_skipped}"
+            yield (
+                f"🧠 Image indexing complete. "
+                f"Total indexed: {count_total}, skipped: {count_skipped}"
+            )
         else:
             yield f"⚠️ No new image chunks indexed. {count_skipped} duplicates skipped."
 
@@ -560,8 +569,6 @@ class PipelineRunner:
                     c for c in chunks if getattr(c, "description", None) and "image_path" in c.meta
                 ]
                 if image_chunks:
-                    from scripts.chunking.models import ImageChunk
-
                     run_logger.log_images(image_chunks)  # cast is safe due to structure
             except Exception as e:
                 self.logger.warning(f"RunLogger failed in step_retrieve: {e}")

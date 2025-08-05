@@ -66,7 +66,9 @@ def load_pdf(path: str | Path) -> List[Tuple[str, dict]]:
                             cropped = page.crop(bbox).to_image(resolution=150)
                             pil_image = cropped.original
 
-                            img_name = generate_image_filename(doc_id, page_number, img_idx)
+                            img_name = generate_image_filename(
+                                doc_id, page_number, img_idx
+                            )
                             img_path = image_dir / img_name
 
                             save_image_pillow(pil_image, img_path)
@@ -76,7 +78,8 @@ def load_pdf(path: str | Path) -> List[Tuple[str, dict]]:
 
                         except Exception as e:
                             print(
-                                f"Warning! [PDF] Failed to extract image on page {page_number}: {e}"
+                                f"Warning! [PDF] Failed to extract image on page "
+                                f"{page_number}: {e}"
                             )
                             continue
 
@@ -84,7 +87,9 @@ def load_pdf(path: str | Path) -> List[Tuple[str, dict]]:
                 segments.append((text or "[Image-only page]", base_meta))
 
             if not segments or all(not seg[0].strip() for seg in segments):
-                raise UnsupportedFileError(f"No extractable text or image found in PDF: {path}")
+                raise UnsupportedFileError(
+                    f"No extractable text or image found in PDF: {path}"
+                )
 
             return segments
 
@@ -92,21 +97,28 @@ def load_pdf(path: str | Path) -> List[Tuple[str, dict]]:
         raise
 
     except PDFPasswordIncorrect as e:
-        raise UnsupportedFileError(f"PDF {path} is encrypted and requires a password.") from e
+        raise UnsupportedFileError(
+            f"PDF {path} is encrypted and requires a password."
+        ) from e
 
     except PDFSyntaxError as e:
-        raise UnsupportedFileError(f"Failed to parse PDF {path}, it might be corrupted: {e}") from e
+        raise UnsupportedFileError(
+            f"Failed to parse PDF {path}, it might be corrupted: {e}"
+        ) from e
 
     except PdfminerException as e:
         if isinstance(e.args[0], PDFPasswordIncorrect):
-            raise UnsupportedFileError(f"PDF {path} is encrypted and requires a password.") from e
+            raise UnsupportedFileError(
+                f"PDF {path} is encrypted and requires a password."
+            ) from e
         elif isinstance(e.args[0], PDFSyntaxError):
             raise UnsupportedFileError(
                 f"Failed to parse PDF {path}, it might be corrupted: {e.args[0]}"
             ) from e
         else:
             raise UnsupportedFileError(
-                f"An unexpected PDF processing error occurred with {path}: {e.args[0]}"
+                f"An unexpected PDF processing error occurred with {path}: "
+                f"{e.args[0]}"
             ) from e
 
     except UnsupportedFileError:

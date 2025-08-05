@@ -57,10 +57,12 @@ def test_console_and_file_handlers_added(cleanup_test_logs):
     assert len(logger.handlers) == 2, "Logger should have two handlers"
 
     has_console_handler = any(
-        isinstance(h, logging.StreamHandler) and h.stream == sys.stdout for h in logger.handlers
+        isinstance(h, logging.StreamHandler) and h.stream == sys.stdout
+        for h in logger.handlers
     )
     has_file_handler = any(
-        isinstance(h, logging.FileHandler) and h.baseFilename == os.path.abspath(log_file_path)
+        isinstance(h, logging.FileHandler)
+        and h.baseFilename == os.path.abspath(log_file_path)
         for h in logger.handlers
     )
 
@@ -69,7 +71,8 @@ def test_console_and_file_handlers_added(cleanup_test_logs):
 
 
 def test_json_log_output_structure(cleanup_test_logs):
-    """Tests that file logs are valid JSON when use_json is True and contain expected keys."""
+    """Tests that file logs are valid JSON when use_json is True and contain
+    expected keys."""
     logger_name = "test_json_output"
     log_file_path = os.path.join(TEST_LOG_DIR, f"{logger_name}.log")
     logger = LoggerManager.get_logger(
@@ -111,7 +114,8 @@ def test_json_log_output_structure(cleanup_test_logs):
 def test_colorlog_fallbacks_gracefully(cleanup_test_logs, monkeypatch):
     """
     Tests that the logger falls back gracefully if colorlog is not available.
-    It also checks that the console handler's formatter is a standard logging.Formatter.
+    It also checks that the console handler's formatter is a standard
+    logging.Formatter.
     """
     logger_name = "test_color_fallback"
     log_file_path = os.path.join(TEST_LOG_DIR, f"{logger_name}.log")
@@ -128,7 +132,10 @@ def test_colorlog_fallbacks_gracefully(cleanup_test_logs, monkeypatch):
         )
         logger.info("Test message without colorlog.")  # Should not raise error
     except Exception as e:
-        pytest.fail(f"Logger initialization or logging failed when colorlog is unavailable: {e}")
+        pytest.fail(
+            f"Logger initialization or logging failed when colorlog is "
+            f"unavailable: {e}"
+        )
 
     # Verify the console handler's formatter is a standard logging.Formatter
     console_handler = None
@@ -139,16 +146,22 @@ def test_colorlog_fallbacks_gracefully(cleanup_test_logs, monkeypatch):
 
     assert console_handler is not None, "Console handler not found."
     assert isinstance(console_handler.formatter, logging.Formatter), (
-        "Console handler formatter should be a standard logging.Formatter when colorlog is unavailable."
+        "Console handler formatter should be a standard logging.Formatter "
+        "when colorlog is unavailable."
     )
 
-    # Check that it's not a ColorLog specific formatter (if ColorLogFormatter was imported and type checkable)
+    # Check that it's not a ColorLog specific formatter (if ColorLogFormatter
+    # was imported and type checkable)
     # Since we cannot directly import ColoredFormatter when it might not exist,
-    # we rely on the fact that it *would* be a ColoredFormatter if COLORLOG_AVAILABLE was True
-    # and LoggerManager tried to use it. The isinstance(..., logging.Formatter) check is key.
+    # we rely on the fact that it *would* be a ColoredFormatter if
+    # COLORLOG_AVAILABLE was True
+    # and LoggerManager tried to use it. The isinstance(...,
+    # logging.Formatter) check is key.
 
     # Also ensure file logging still works
-    assert os.path.exists(log_file_path), "Log file was not created during fallback test."
+    assert os.path.exists(log_file_path), (
+        "Log file was not created during fallback test."
+    )
     with open(log_file_path, 'r') as f:
         assert "Test message without colorlog." in f.read()
 
@@ -164,7 +177,9 @@ def test_logfile_created(cleanup_test_logs):
 
     assert not os.path.exists(log_file_path), "Log file exists before logging."
 
-    logger = LoggerManager.get_logger(logger_name, log_file=log_file_path, level="INFO")
+    logger = LoggerManager.get_logger(
+        logger_name, log_file=log_file_path, level="INFO"
+    )
     logger.info("This message should create a log file.")
 
     # Ensure the file handler is closed so the message is flushed

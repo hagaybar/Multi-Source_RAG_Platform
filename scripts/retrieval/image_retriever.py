@@ -15,7 +15,8 @@ class ImageRetriever:
 
         if len(self.metadata) != self.index.ntotal:
             raise ValueError(
-                f"ImageRetriever: metadata count ({len(self.metadata)}) does not match FAISS entries ({self.index.ntotal})."
+                f"ImageRetriever: metadata count ({len(self.metadata)}) "
+                f"does not match FAISS entries ({self.index.ntotal})."
             )
 
     def _load_metadata(self, path: str) -> List[dict]:

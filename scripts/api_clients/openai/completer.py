@@ -14,15 +14,19 @@ class OpenAICompleter:
     def __init__(self, api_key: str | None = None, model_name: str = "gpt-3.5-turbo"):
         """
         Initializes the OpenAICompleter.
-        LiteLLM will use the OPEN_AI environment variable by default if api_key is not provided.
+        LiteLLM will use the OPEN_AI environment variable by default if api_key is
+        not provided.
 
         Args:
             api_key (str, optional): OpenAI API key. If provided, it will be used.
                                      Otherwise, LiteLLM will look for OPEN_AI env var.
             model_name (str, optional): Default OpenAI model to use for completions.
                                         Defaults to "gpt-3.5-turbo".
-                                        Ensure this model name is prefixed with "openai/" if required by your LiteLLM setup,
-                                        though often not necessary for direct OpenAI calls.
+                                        Ensure this model name is prefixed with
+                                        "openai/" 
+                                        if required by your LiteLLM setup,
+                                        though often not necessary for direct
+                                        OpenAI calls.
                                         For direct OpenAI, "gpt-3.5-turbo" is fine.
         """
         if api_key:
@@ -31,15 +35,20 @@ class OpenAICompleter:
         # Check if the API key is available for LiteLLM
         if not os.getenv("OPEN_AI"):
             logger.error(
-                "OpenAI API key not found. Please set the OPEN_AI environment variable or pass api_key to constructor."
+                "OpenAI API key not found. Please set the OPEN_AI "
+                "environment variable or pass api_key to constructor."
             )
             raise ValueError(
-                "OpenAI API key not found. Please set the OPEN_AI environment variable or pass api_key to constructor."
+                "OpenAI API key not found. Please set the OPEN_AI "
+                "environment variable or pass api_key to constructor."
             )
 
-        # The model name for LiteLLM should be just the model ID, e.g., "gpt-3.5-turbo" for OpenAI
+        # The model name for LiteLLM should be just the model ID, e.g.,
+        # "gpt-3.5-turbo" for OpenAI
         self.model_name = model_name
-        logger.info(f"OpenAICompleter initialized, will use LiteLLM for model: {self.model_name}")
+        logger.info(
+            f"OpenAICompleter initialized, will use LiteLLM for model: {self.model_name}"
+        )
 
     def get_completion(
         self,
@@ -53,8 +62,10 @@ class OpenAICompleter:
 
         Args:
             prompt (str): The prompt to send to the model.
-            model_name (str, optional): The model to use. If None, uses the instance's default model.
-                                        For OpenAI, this would be e.g. "gpt-3.5-turbo", "gpt-4", etc.
+            model_name (str, optional): The model to use. If None, uses the 
+                                        instance's default model.
+                                        For OpenAI, this would be e.g. 
+                                        "gpt-3.5-turbo", "gpt-4", etc.
             temperature (float, optional): Sampling temperature. Defaults to 0.7.
             max_tokens (int, optional): Maximum number of tokens to generate. Defaults to 500.
 
@@ -62,13 +73,15 @@ class OpenAICompleter:
             str | None: The content of the completion, or None if an error occurs.
         """
         current_model = model_name or self.model_name
-        # For LiteLLM, ensure the model name is correctly formatted if it needs a prefix like "openai/"
+        # For LiteLLM, ensure the model name is correctly formatted 
+        # if it needs a prefix like "openai/"
         # However, for direct OpenAI calls through LiteLLM, "gpt-3.5-turbo" is typically sufficient.
         # If using a proxy or router, the model name might need to be "openai/gpt-3.5-turbo".
         # For simplicity, we assume direct usage here.
 
         logger.info(
-            f"Requesting completion from LiteLLM for model: {current_model} with prompt (first 100 chars): '{prompt[:100]}...'"
+            f"Requesting completion from LiteLLM for model: {current_model} "
+            f"with prompt (first 100 chars): '{prompt[:100]}...'"
         )
 
         messages = [{"role": "user", "content": prompt}]
@@ -147,7 +160,8 @@ class OpenAICompleter:
             ):
                 content = response.choices[0].message.content
                 logger.info(
-                    f"Multimodal completion received successfully via LiteLLM. Length: {len(content)} chars."
+                    f"Multimodal completion received successfully via LiteLLM. "
+                    f"Length: {len(content)} chars."
                 )
                 return content
             logger.warning("No completion content received from LiteLLM or content is empty.")

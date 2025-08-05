@@ -25,7 +25,8 @@ from scripts.chunking.chunker_v3 import split as chunk_text
 
 class PipelineRunner:
     """
-    Orchestrates sequential execution of modular pipeline steps (ingest, chunk, enrich, embed, index).
+    Orchestrates sequential execution of modular pipeline steps
+    (ingest, chunk, enrich, embed, index).
     """
 
     def __init__(self, project: ProjectManager, config: dict):
@@ -70,7 +71,9 @@ class PipelineRunner:
 
             try:
                 if not callable(step_fn):
-                    raise AttributeError(f"Step method 'step_{name}' not found or not callable")
+                    raise AttributeError(
+                        f"Step method 'step_{name}' not found or not callable"
+                    )
                 result = step_fn(**kwargs)
                 if isinstance(result, Iterator):
                     yield from result
@@ -90,7 +93,9 @@ class PipelineRunner:
 
     def step_ingest(self, path: Path = None, **kwargs) -> Iterator[str]:
         yield "📥 Starting ingestion..."
-        ingestion_manager = IngestionManager(log_file=self.project.get_log_path("ingestion"))
+        ingestion_manager = IngestionManager(
+            log_file=self.project.get_log_path("ingestion")
+        )
 
         path = path or self.project.input_dir / "raw"
         if not path.exists():
@@ -115,7 +120,9 @@ class PipelineRunner:
                 new_docs.append(doc)
                 self.seen_hashes.add(doc_hash)
             else:
-                self.logger.info(f"Duplicate skipped: {doc.metadata.get('source_filepath')}")
+                self.logger.info(
+                    f"Duplicate skipped: {doc.metadata.get('source_filepath')}"
+                )
 
         self.raw_docs = new_docs
         yield f"✅ Ingested {len(new_docs)} unique documents from {path.name}"
@@ -138,18 +145,27 @@ class PipelineRunner:
             meta = doc.metadata.copy()
             meta["doc_id"] = doc_id
             print(
-                f"[CHUNK DEBUG] doc_id: {doc_id}, paragraph: {meta.get('paragraph_number')}, image_paths: {meta.get('image_paths')}"
+                f"[CHUNK DEBUG] doc_id: {doc_id}, paragraph: "
+                f"{meta.get('paragraph_number')}, "
+                f"image_paths: {meta.get('image_paths')}"
             )
 
             try:
                 if "image_paths" in meta:
-                    print(f"[CHUNK] Passing image_paths for {doc_id}: {meta['image_paths']}")
                     print(
-                        f"[CHUNK] Paragraph {meta.get('paragraph_number')} - images: {meta['image_paths']}"
+                        f"[CHUNK] Passing image_paths for {doc_id}: "
+                        f"{meta['image_paths']}"
+                    )
+                    print(
+                        f"[CHUNK] Paragraph {meta.get('paragraph_number')} - "
+                        f"images: {meta['image_paths']}"
                     )
                 chunks = chunk_text(doc.content, meta)
                 all_chunks.extend(chunks)
-                yield f"✂️ {len(chunks)} chunks from {doc_type.upper()} document: {doc_id}"
+                yield (
+                    f"✂️ {len(chunks)} chunks from {doc_type.upper()} document: "
+                    f"{doc_id}"
+                )
             except Exception as e:
                 yield f"❌ Error chunking {doc_id}: {e}"
                 self.logger.warning(f"Chunking failed for {doc_id}: {e}")
@@ -173,7 +189,9 @@ class PipelineRunner:
             try:
                 with open(chunk_path, "w", encoding="utf-8", newline="") as f:
                     writer = csv.writer(f, delimiter="\t")
-                    writer.writerow(["chunk_id", "doc_id", "text", "token_count", "meta_json"])
+                    writer.writerow(
+                        ["chunk_id", "doc_id", "text", "token_count", "meta_json"]
+                    )
                     for chunk in chunks:
                         writer.writerow(
                             [
@@ -193,7 +211,10 @@ class PipelineRunner:
     def step_enrich(self, overwrite: bool = False, **kwargs) -> Iterator[str]:
         # ─── Initial notice & in‐memory debug ───
         yield "🧠 Starting image enrichment..."
-        yield f"🐞 DEBUG: runner has {len(self.chunks)} chunks in memory before enrichment"
+        yield (
+            f"🐞 DEBUG: runner has {len(self.chunks)} chunks in memory before "
+            f"enrichment"
+        )
 
         # ─── Fallback to load from disk if none in memory ───
 
@@ -202,7 +223,10 @@ class PipelineRunner:
             chunk_glob = str(self.project.input_dir / "chunks_*.tsv")
             chunk_paths = list(self.project.input_dir.glob("chunks_*.tsv"))
             yield f"🐞 DEBUG: looking for chunk files with glob `{chunk_glob}`"
-            yield f"🐞 DEBUG: found {len(chunk_paths)} chunk file(s): {[p.name for p in chunk_paths]}"
+            yield (
+                f"🐞 DEBUG: found {len(chunk_paths)} chunk file(s): "
+                f"{[p.name for p in chunk_paths]}"
+            )
 
             if chunk_paths:
                 loaded = 0
@@ -258,7 +282,9 @@ class PipelineRunner:
                 yield f"🖼️ Enriched {len(img_list)} image(s) in chunk: {chunk.id}"
 
             except Exception as e:
-                self.logger.warning(f"Image enrichment failed for chunk {chunk.id}: {e}")
+                self.logger.warning(
+                    f"Image enrichment failed for chunk {chunk.id}: {e}"
+                )
                 enriched_chunks.append(chunk)
                 yield f"⚠️ Failed to enrich chunk {chunk.id}: {e}"
 
@@ -277,13 +303,18 @@ class PipelineRunner:
         for doc_type, chunks in by_type.items():
             save_path = enriched_dir / f"chunks_{doc_type}.tsv"
             if save_path.exists() and not overwrite:
-                yield f"⚠️ Enriched file already exists: {save_path.name}. Use overwrite=True to replace."
+                yield (
+                    f"⚠️ Enriched file already exists: {save_path.name}. "
+                    f"Use overwrite=True to replace."
+                )
                 continue
 
             try:
                 with open(save_path, "w", encoding="utf-8", newline="") as f:
                     writer = csv.writer(f, delimiter="\t")
-                    writer.writerow(["chunk_id", "doc_id", "text", "token_count", "meta_json"])
+                    writer.writerow(
+                        ["chunk_id", "doc_id", "text", "token_count", "meta_json"]
+                    )
                     for chunk in chunks:
                         writer.writerow(
                             [
@@ -300,7 +331,9 @@ class PipelineRunner:
 
         yield f"✅ Enrichment complete: {count_enriched}/{count_total} chunks enriched"
 
-    def step_index_images(self, doc_types: list[str] = None, **kwargs) -> Iterator[str]:
+    def step_index_images(
+        self, doc_types: list[str] = None, **kwargs
+    ) -> Iterator[str]:
         """
         Index enriched image descriptions into FAISS and metadata JSONL.
         """
@@ -376,10 +409,15 @@ class PipelineRunner:
 
             # Use enriched if allowed and available
             path_to_use = (
-                enriched_path if image_enrichment_enabled and enriched_path.exists() else chunk_path
+                enriched_path
+                if image_enrichment_enabled and enriched_path.exists()
+                else chunk_path
             )
             if image_enrichment_enabled and not enriched_path.exists():
-                yield f"⚠️ Enrichment enabled, but enriched file not found for {doc_type}. Using base chunks."
+                yield (
+                    f"⚠️ Enrichment enabled, but enriched file not found for "
+                    f"{doc_type}. Using base chunks."
+                )
 
             yield f"📄 Loading chunks: {path_to_use.name}"
             chunks = load_chunks(path_to_use)
@@ -390,7 +428,9 @@ class PipelineRunner:
                 yield f"✅ Embedded and indexed chunks for: {doc_type}"
             except Exception as e:
                 yield f"❌ Embedding failed for {doc_type}: {e}"
-                self.logger.error(f"Embedding failed for {doc_type}: {e}", exc_info=True)
+                self.logger.error(
+                    f"Embedding failed for {doc_type}: {e}", exc_info=True
+                )
 
         yield "📦 Embedding complete for all doc types."
 
@@ -446,7 +486,9 @@ class PipelineRunner:
 
         try:
             prompt_builder = PromptBuilder()  # uses default template
-            prompt = prompt_builder.build_prompt(query, context_chunks=self.retrieved_chunks)
+            prompt = prompt_builder.build_prompt(
+                query, context_chunks=self.retrieved_chunks
+            )
             yield f"📜 Prompt built. Sending to model: {model_name}..."
 
             completer = OpenAICompleter(model_name=model_name)
@@ -462,7 +504,8 @@ class PipelineRunner:
 
             # Optional: print sources
             sources = {
-                chunk.meta.get("source_filepath", chunk.doc_id) for chunk in self.retrieved_chunks
+                chunk.meta.get("source_filepath", chunk.doc_id)
+                for chunk in self.retrieved_chunks
             }
             if sources:
                 yield ""
@@ -501,10 +544,15 @@ class PipelineRunner:
         yield from self.run_steps()
 
     def run_query_only(
-        self, query: str, strategy: str = "late_fusion", top_k: int = 5, model_name: str = "gpt-4o"
+        self,
+        query: str,
+        strategy: str = "late_fusion",
+        top_k: int = 5,
+        model_name: str = "gpt-4o"
     ) -> Iterator[str]:
         """
-        Runs only the retrieval and answer generation steps using existing FAISS + metadata.
+        Runs only the retrieval and answer generation steps using existing FAISS +
+        metadata.
 
         Assumes data is already ingested, chunked, embedded, and indexed.
 

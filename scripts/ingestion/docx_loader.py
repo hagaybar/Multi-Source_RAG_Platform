@@ -19,7 +19,8 @@ logger = logging.getLogger("docx_ingestor")
 
 
 def load_docx(path: str | pathlib.Path) -> List[Tuple[str, dict]]:
-    """Extract text and image references from a .docx file as (text, metadata) chunks."""
+    """Extract text and image references from a .docx file as
+    (text, metadata) chunks."""
     if not isinstance(path, Path):
         path = Path(path)
 
@@ -59,7 +60,10 @@ def load_docx(path: str | pathlib.Path) -> List[Tuple[str, dict]]:
             if rId in saved_images:
                 # Reuse the existing path
                 image_paths.append(saved_images[rId])
-                print(f"[DEBUG] Paragraph {para_idx} → reusing image {rId}: {saved_images[rId]}")
+                print(
+                    f"[DEBUG] Paragraph {para_idx} → reusing image {rId}: "
+                    f"{saved_images[rId]}"
+                )
             else:
                 # Get the image part
                 image_part = document.part.related_parts.get(rId)
@@ -76,7 +80,9 @@ def load_docx(path: str | pathlib.Path) -> List[Tuple[str, dict]]:
                 save_image_blob(image_part.blob, img_path)
 
                 try:
-                    rel_path = img_path.resolve().relative_to((project_root / "input").resolve())
+                    rel_path = img_path.resolve().relative_to(
+                        (project_root / "input").resolve()
+                    )
                     saved_path = str(rel_path)
                 except ValueError:
                     saved_path = f"cache/images/{img_path.name}"
@@ -85,26 +91,37 @@ def load_docx(path: str | pathlib.Path) -> List[Tuple[str, dict]]:
                 image_paths.append(saved_path)
                 img_counter += 1
 
-                print(f"[DEBUG] Paragraph {para_idx} → saved new image {rId}: {saved_path}")
-                logger.info(f"[DOCX] Paragraph {para_idx} → saved image {rId}: {saved_path}")
+                print(
+                    f"[DEBUG] Paragraph {para_idx} → saved new image {rId}: "
+                    f"{saved_path}"
+                )
+                logger.info(
+                    f"[DOCX] Paragraph {para_idx} → saved image {rId}: {saved_path}"
+                )
 
         # Add image paths to metadata if any were found
         if image_paths:
             meta["image_paths"] = image_paths
             print(
-                f"[DEBUG] Paragraph {para_idx} → extracted {len(image_paths)} image(s): {image_paths}"
+                f"[DEBUG] Paragraph {para_idx} → extracted {len(image_paths)} "
+                f"image(s): {image_paths}"
             )
             logger.info(
-                f"[DOCX] [DEBUG] Paragraph {para_idx} → extracted {len(image_paths)} image(s): {image_paths}"
+                f"[DOCX] [DEBUG] Paragraph {para_idx} → extracted {len(image_paths)} "
+                f"image(s): {image_paths}"
             )
 
         # Create segment if there's text or images
         if text or image_paths:
             segments.append((text or "[Image-only content]", meta))
         else:
-            print(f"[DEBUG] Paragraph {para_idx} was skipped — no text and no images recorded.")
+            print(
+                f"[DEBUG] Paragraph {para_idx} was skipped — "
+                f"no text and no images recorded."
+            )
             logger.debug(
-                f"[DOCX] [DEBUG] Paragraph {para_idx} was skipped — no text and no images recorded."
+                f"[DOCX] [DEBUG] Paragraph {para_idx} was skipped — "
+                f"no text and no images recorded."
             )
 
     # Debug: Print all segments with images
@@ -112,11 +129,13 @@ def load_docx(path: str | pathlib.Path) -> List[Tuple[str, dict]]:
     for idx, (text, meta) in enumerate(segments):
         if 'image_paths' in meta:
             print(
-                f"  Segment {idx}: Paragraph {meta['paragraph_number']}, Images: {meta['image_paths']}"
+                f"  Segment {idx}: Paragraph {meta['paragraph_number']}, "
+                f"Images: {meta['image_paths']}"
             )
 
     print(
-        f"[INFO] Extracted {sum('image_paths' in m for _, m in segments)} image-attached chunks from {path.name}"
+        f"[INFO] Extracted {sum('image_paths' in m for _, m in segments)} "
+        f"image-attached chunks from {path.name}"
     )
     print(f"[INFO] Total segments: {len(segments)}")
 
@@ -142,7 +161,8 @@ def load_docx(path: str | pathlib.Path) -> List[Tuple[str, dict]]:
     for i, (text, meta) in enumerate(segments):
         if 'image_paths' in meta:
             print(
-                f"  Segment {i}: {meta.get('doc_type')} para {meta.get('paragraph_number', 'N/A')}, images: {meta['image_paths']}"
+                f"  Segment {i}: {meta.get('doc_type')} para "
+                f"{meta.get('paragraph_number', 'N/A')}, images: {meta['image_paths']}"
             )
 
     return segments

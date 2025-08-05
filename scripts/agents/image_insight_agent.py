@@ -62,7 +62,9 @@ class ImageInsightAgent(AgentProtocol):
                 "source_filepath": chunk.meta.get("source_filepath"),
             }
 
-            image_chunk = ImageChunk(id=str(uuid.uuid4()), description=insight, meta=image_meta)
+            image_chunk = ImageChunk(
+                id=str(uuid.uuid4()), description=insight, meta=image_meta
+            )
             image_chunks.append(image_chunk)
 
         if self.output_mode == "separate_chunk":

@@ -22,7 +22,10 @@ class Doc:
     meta: Dict[str, Any]
 
     def __repr__(self):
-        return f"Doc(doc_id='{self.doc_id}', num_chunks={len(self.chunks)}, meta={self.meta})"
+        return (
+            f"Doc(doc_id='{self.doc_id}', num_chunks={len(self.chunks)}, "
+            f"meta={self.meta})"
+        )
 
 
 @dataclass

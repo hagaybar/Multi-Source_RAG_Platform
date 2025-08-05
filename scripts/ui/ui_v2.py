@@ -29,7 +29,9 @@ elif section == "Data":
 # Section: Pipeline Actions
 elif section == "Pipeline Actions":
     st.header("🚀 Pipeline Actions")
-    st.info("Run individual stages of the pipeline (ingest, chunk, embed, retrieve, ask).")
+    st.info(
+        "Run individual stages of the pipeline (ingest, chunk, embed, retrieve, ask)."
+    )
     st.subheader("Ask a Question")
 
     # Scan projects folder for valid projects

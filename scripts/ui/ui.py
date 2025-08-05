@@ -28,7 +28,9 @@ elif section == "Data":
 # Section: Pipeline Actions
 elif section == "Pipeline Actions":
     st.header("🚀 Pipeline Actions")
-    st.info("Run individual stages of the pipeline (ingest, chunk, embed, retrieve, ask).")
+    st.info(
+        "Run individual stages of the pipeline (ingest, chunk, embed, retrieve, ask)."
+    )
     st.subheader("Ask a Question")
 
     # Scan projects folder for valid projects
@@ -50,7 +52,9 @@ elif section == "Pipeline Actions":
         output_folder = proj / "output"
         faiss_folder = output_folder / "faiss"
         chunks_exist = list(input_folder.glob("chunks_*.tsv"))
-        index_exist = list(faiss_folder.glob("*.faiss")) if faiss_folder.exists() else []
+        index_exist = (
+            list(faiss_folder.glob("*.faiss")) if faiss_folder.exists() else []
+        )
         jsonl_exist = list(output_folder.glob("*.jsonl"))
 
         if config_exists and chunks_exist and index_exist and jsonl_exist:
@@ -70,11 +74,15 @@ elif section == "Pipeline Actions":
             invalid_projects.append((proj.name, missing))
 
     # Create options list with valid projects first
-    all_options = valid_projects + [f"{proj[0]} (invalid)" for proj in invalid_projects]
+    all_options = valid_projects + [
+        f"{proj[0]} (invalid)" for proj in invalid_projects
+    ]
 
     if all_options:
         st.write("Select a project to ask a question:")
-        selected_project_display = st.selectbox("Project", options=all_options, index=0)
+        selected_project_display = st.selectbox(
+            "Project", options=all_options, index=0
+        )
 
         # Extract the actual project name (remove "(invalid)" suffix if present)
         selected_project = selected_project_display.replace(" (invalid)", "")
@@ -84,7 +92,8 @@ elif section == "Pipeline Actions":
             question = st.text_input("Enter your question:")
             if st.button("Ask"):
                 st.success(
-                    f"Running ask() on project '{selected_project}' with question: {question}"
+                    f"Running ask() on project '{selected_project}' with question: "
+                    f"{question}"
                 )
                 st.markdown("---")
                 st.markdown("### 🤖 Answer")
@@ -101,7 +110,9 @@ elif section == "Pipeline Actions":
                 ),
                 [],
             )
-            st.warning(f"This project is invalid. Missing: {', '.join(missing_items)}")
+            st.warning(
+                f"This project is invalid. Missing: {', '.join(missing_items)}"
+            )
     else:
         st.warning("No projects found. Please create a project first.")
 

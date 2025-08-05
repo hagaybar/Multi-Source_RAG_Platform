@@ -15,7 +15,9 @@ class BatchEmbedder:
     Submits a large embedding job to OpenAI's asynchronous /v1/batches API.
     """
 
-    def __init__(self, model: str, output_dir: Path, api_key: Optional[str] = None, logger=None):
+    def __init__(
+        self, model: str, output_dir: Path, api_key: Optional[str] = None, logger=None
+    ):
         print("\n" + "=" * 100)
         print("DEBUG: BatchEmbedder.__init__() STARTING")
         print("=" * 100)
@@ -39,7 +41,9 @@ class BatchEmbedder:
             print("DEBUG:   - NO API KEY FOUND!")
 
         if not self.api_key:
-            error_msg = "API key not found in config or environment variable 'OPEN_AI'"
+            error_msg = (
+                "API key not found in config or environment variable 'OPEN_AI'"
+            )
             print(f"ERROR: {error_msg}")
             raise ValueError(error_msg)
 
@@ -54,7 +58,9 @@ class BatchEmbedder:
         print("DEBUG: BatchEmbedder.__init__() COMPLETE")
         print("=" * 100)
 
-    def run(self, texts: List[str], ids: Optional[List[str]] = None) -> Dict[str, List[float]]:
+    def run(
+        self, texts: List[str], ids: Optional[List[str]] = None
+    ) -> Dict[str, List[float]]:
         print("\n" + "=" * 120)
         print("DEBUG: BatchEmbedder.run() *** MAIN ENTRY POINT ***")
         print("=" * 120)
@@ -78,7 +84,9 @@ class BatchEmbedder:
         input_path = self._prepare_jsonl_file(texts, ids)
         print(f"DEBUG: JSONL file prepared at: {input_path}")
 
-        output_path = self.output_dir / f"openai_batch_{int(time.time())}_output.jsonl"
+        output_path = (
+            self.output_dir / f"openai_batch_{int(time.time())}_output.jsonl"
+        )
         print(f"DEBUG: Output path will be: {output_path}")
 
         print("DEBUG: About to upload file to OpenAI and create batch...")
@@ -98,16 +106,20 @@ class BatchEmbedder:
                     input_file_id=file_upload.id,
                     endpoint="/v1/embeddings",
                     completion_window="24h",
-                    metadata={"description": f"Batch embedding job with {len(texts)} texts"},
+                    metadata={
+                        "description": f"Batch embedding job with {len(texts)} texts"
+                    },
                 )
                 print(f"DEBUG: Batch created successfully - batch_id: {batch.id}")
                 print(f"DEBUG: Batch status: {batch.status}")
 
                 self.logger.info(
-                    f"[OPENAI SUBMIT] Submitted async batch job: {batch.id} | status: {batch.status}"
+                    f"[OPENAI SUBMIT] Submitted async batch job: {batch.id} | "
+                    f"status: {batch.status}"
                 )
                 self.logger.info(
-                    f"[OPENAI SUBMIT] Input file: {input_path.name} | Size: {len(texts)} chunks"
+                    f"[OPENAI SUBMIT] Input file: {input_path.name} | "
+                    f"Size: {len(texts)} chunks"
                 )
 
         except Exception as e:
@@ -152,7 +164,11 @@ class BatchEmbedder:
                     "custom_id": ids[i],
                     "method": "POST",
                     "url": "/v1/embeddings",
-                    "body": {"model": self.model, "input": text, "encoding_format": "float"},
+                    "body": {
+                        "model": self.model,
+                        "input": text,
+                        "encoding_format": "float"
+                    },
                 }
                 f.write(json.dumps(request) + "\n")
 
@@ -198,7 +214,9 @@ class BatchEmbedder:
             content = self.client.files.content(file_id)
             with open(output_path, "wb") as f:
                 f.write(content.content)
-            print(f"DEBUG: Successfully downloaded {output_path.stat().st_size} bytes")
+            print(
+                f"DEBUG: Successfully downloaded {output_path.stat().st_size} bytes"
+            )
             self.logger.info(f"[OPENAI DOWNLOAD] Downloaded output to: {output_path}")
 
         except Exception as e:
@@ -228,18 +246,23 @@ class BatchEmbedder:
 
                         if i < 3:
                             print(
-                                f"DEBUG: Extracted embedding for {custom_id}: {len(embedding)} dimensions"
+                                f"DEBUG: Extracted embedding for {custom_id}: "
+                                f"{len(embedding)} dimensions"
                             )
                     else:
                         print(f"DEBUG: WARNING - Non-200 status for line {i}: {row}")
 
                 except json.JSONDecodeError as e:
-                    self.logger.error(f"[ERROR] Failed to parse line {i} in {path.name}")
+                    self.logger.error(
+                        f"[ERROR] Failed to parse line {i} in {path.name}"
+                    )
                     self.logger.error(f"[ERROR] Raw line: {line[:200]}...")
                     print(f"ERROR: JSON decode error on line {i}: {e}")
                     print(f"ERROR: Raw line: {line[:200]}...")
                     raise e
 
         print(f"DEBUG: Loaded {len(result)} embeddings from result file")
-        self.logger.info(f"[OPENAI LOAD] Loaded {len(result)} embeddings from result file")
+        self.logger.info(
+            f"[OPENAI LOAD] Loaded {len(result)} embeddings from result file"
+        )
         return result

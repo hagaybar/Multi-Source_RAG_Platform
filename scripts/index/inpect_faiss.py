@@ -29,6 +29,7 @@ if __name__ == "__main__":
 
     # dim, count = get_faiss_dimensions(sys.argv[1])
     dim, count = get_faiss_dimensions(
-        r"C:\git projects\Multi-Source_RAG_Platform\data\projects\demo_project_batch_api\output\faiss\docx.faiss"
+        r"C:\git projects\Multi-Source_RAG_Platform\data\projects\"
+        r"demo_project_batch_api\output\faiss\docx.faiss"
     )
     print(f"FAISS index has dimension: {dim}, number of vectors: {count}")

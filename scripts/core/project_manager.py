@@ -6,7 +6,8 @@ from typing import List, Tuple, Dict, Any
 
 class ProjectManager:
     """
-    Represents a RAG project workspace with its own config, input, and output directories.
+    Represents a RAG project workspace with its own config, input, and output
+    directories.
     """
 
     def __init__(self, root_dir: str | Path):
@@ -18,9 +19,15 @@ class ProjectManager:
 
         self.input_dir = self.root_dir / self.config.get("paths.input_dir", "input")
         self.output_dir = self.root_dir / self.config.get("paths.output_dir", "output")
-        self.logs_dir = self.root_dir / self.config.get("paths.logs_dir", "output/logs")
-        self.faiss_dir = self.root_dir / self.config.get("paths.faiss_dir", "output/faiss")
-        self.metadata_dir = self.root_dir / self.config.get("paths.metadata_dir", "output/metadata")
+        self.logs_dir = self.root_dir / self.config.get(
+            "paths.logs_dir", "output/logs"
+        )
+        self.faiss_dir = self.root_dir / self.config.get(
+            "paths.faiss_dir", "output/faiss"
+        )
+        self.metadata_dir = self.root_dir / self.config.get(
+            "paths.metadata_dir", "output/metadata"
+        )
 
         self._ensure_directories()
 
@@ -51,7 +58,8 @@ class ProjectManager:
 
     def get_log_path(self, module: str, run_id: str | None = None) -> Path:
         """
-        Returns the path for a log file under the project-specific output/logs/ directory.
+        Returns the path for a log file under the project-specific output/logs/
+        directory.
         If run_id is provided, it appends it to the filename.
         """
         name = f"{module}.log" if not run_id else f"{module}_{run_id}.log"
@@ -116,7 +124,8 @@ class ProjectManager:
                 "image_prompt": (
                     "This is a screenshot from a tutorial document.\n\n"
                     "Surrounding Text:\n{{ context }}\n\n"
-                    "Based on the screenshot and the surrounding text, describe what this image shows, "
+                    "Based on the screenshot and the surrounding text, "
+                    "describe what this image shows, "
                     "what step it illustrates, and why it is helpful in the tutorial."
                 ),
             },

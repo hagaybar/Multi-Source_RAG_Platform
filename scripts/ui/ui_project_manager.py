@@ -6,24 +6,35 @@ from scripts.core.project_manager import ProjectManager
 
 def render_project_creation():
     """
-    Renders the UI for creating a new RAG-GP project with validation and better error handling.
+    Renders the UI for creating a new RAG-GP project with validation and better
+    error handling.
     """
     st.subheader("Create New Project")
 
     with st.form("create_project_form"):
-        project_name = st.text_input("Project Name", help="Enter a unique name for your project")
+        project_name = st.text_input(
+            "Project Name", help="Enter a unique name for your project"
+        )
         project_description = st.text_area(
-            "Project Description (Optional)", help="Brief description of the project's purpose"
+            "Project Description (Optional)",
+            help="Brief description of the project's purpose"
         )
         language = st.selectbox(
-            "Language", ["en", "he", "multi"], help="Primary language of your documents"
+            "Language",
+            ["en", "he", "multi"],
+            help="Primary language of your documents"
         )
         image_enrichment = st.checkbox(
-            "Enable Image Enrichment", help="Extract text from images and screenshots"
+            "Enable Image Enrichment",
+            help="Extract text from images and screenshots"
         )
         embedding_model = st.selectbox(
             "Embedding Model",
-            ["text-embedding-3-large", "text-embedding-ada-002", "bge-large-en-v1.5"],
+            [
+                "text-embedding-3-large",
+                "text-embedding-ada-002",
+                "bge-large-en-v1.5"
+            ],
             help="Model used to convert text into embeddings for search",
         )
 
@@ -36,16 +47,21 @@ def render_project_creation():
             if not project_name.strip():
                 validation_errors.append("Project Name cannot be empty")
             elif len(project_name.strip()) < 2:
-                validation_errors.append("Project Name must be at least 2 characters long")
+                validation_errors.append(
+                    "Project Name must be at least 2 characters long"
+                )
             elif len(project_name.strip()) > 50:
-                validation_errors.append("Project Name must be less than 50 characters")
+                validation_errors.append(
+                    "Project Name must be less than 50 characters"
+                )
 
             # Check for invalid characters
             import re
 
             if not re.match(r'^[a-zA-Z0-9_\-\s]+$', project_name.strip()):
                 validation_errors.append(
-                    "Project Name can only contain letters, numbers, spaces, hyphens, and underscores"
+                    "Project Name can only contain letters, numbers, spaces, "
+                    "hyphens, and underscores"
                 )
 
             # Show validation errors
@@ -72,7 +88,9 @@ def render_project_creation():
 
                     # Validate the created project
                     config_path = project_root / "config.yml"
-                    is_valid, config_errors = ProjectManager.validate_config_file(config_path)
+                    is_valid, config_errors = (
+                        ProjectManager.validate_config_file(config_path)
+                    )
 
                     if not is_valid:
                         # If validation fails, show errors but don't delete the project
@@ -81,7 +99,9 @@ def render_project_creation():
                         for error in config_errors:
                             st.error(f"• {error}")
                         st.info(f"Project location: `{project_root}`")
-                        st.info("You can fix these issues using the Configuration Editor.")
+                        st.info(
+                            "You can fix these issues using the Configuration Editor."
+                        )
                     else:
                         # Success!
                         st.success(f"✅ Project '{project_name}' created successfully!")
@@ -94,9 +114,12 @@ def render_project_creation():
                             st.markdown("""
                             **Your project is ready! Here's what you can do next:**
                             
-                            1. **Upload Data**: Use the "Data" tab to upload your documents
-                            2. **Configure Settings**: Fine-tune your project settings if needed
-                            3. **Run Pipeline**: Use "Pipeline Actions" to process your documents
+                            1. **Upload Data**: Use the "Data" tab to upload your 
+                               documents
+                            2. **Configure Settings**: Fine-tune your project settings 
+                               if needed
+                            3. **Run Pipeline**: Use "Pipeline Actions" to process your 
+                               documents
                             
                             **Project Structure Created:**
                             - `input/raw/` - Upload your documents here
@@ -109,22 +132,29 @@ def render_project_creation():
 
                 except FileExistsError as e:
                     st.error(f"❌ {e}")
-                    st.info("💡 Try a different project name or delete the existing project first.")
+                    st.info(
+                        "💡 Try a different project name or delete the existing "
+                        "project first."
+                    )
 
                 except PermissionError:
                     st.error(
-                        "❌ Permission denied. Check that you have write access to the projects directory."
+                        "❌ Permission denied. Check that you have write access to "
+                        "the projects directory."
                     )
 
                 except OSError as e:
                     st.error(f"❌ File system error: {e}")
                     st.info(
-                        "💡 This might be due to insufficient disk space or invalid characters in the project name."
+                        "💡 This might be due to insufficient disk space or invalid "
+                        "characters in the project name."
                     )
 
                 except Exception as e:
                     st.error(f"❌ An unexpected error occurred: {e}")
-                    st.info("💡 Please check the logs or try again with different settings.")
+                    st.info(
+                        "💡 Please check the logs or try again with different settings."
+                    )
 
                     # Show technical details in an expander for debugging
                     with st.expander("🔧 Technical Details"):
@@ -215,7 +245,8 @@ def render_raw_data_upload(project_path: Path):
                     with open(save_path, "wb") as f:
                         f.write(uploaded_file.getbuffer())
                     st.success(
-                        f"Saved {uploaded_file.name} to {save_dir.relative_to(project_path)}"
+                        f"Saved {uploaded_file.name} to "
+                        f"{save_dir.relative_to(project_path)}"
                     )
                 except Exception as e:
                     st.error(f"Error saving {uploaded_file.name}: {e}")
@@ -294,7 +325,8 @@ def render_config_editor_v2(project_path: Path):
         st.success("✅ Configuration is valid")
 
     st.markdown(
-        "Use this form to review or edit project settings. These control ingestion, embedding, and enrichment behavior."
+        "Use this form to review or edit project settings. These control "
+        "ingestion, embedding, and enrichment behavior."
     )
 
     with st.form("config_form"):
@@ -319,7 +351,9 @@ def render_config_editor_v2(project_path: Path):
         language_options = ["en", "he", "multi"]
         current_language = project_section.get("language", "en")
         language_index = (
-            language_options.index(current_language) if current_language in language_options else 0
+            language_options.index(current_language)
+            if current_language in language_options
+            else 0
         )
 
         language = st.selectbox(
@@ -338,14 +372,19 @@ def render_config_editor_v2(project_path: Path):
         ]
         current_model = embedding_section.get("model", "text-embedding-3-large")
         model_index = (
-            embedding_options.index(current_model) if current_model in embedding_options else 0
+            embedding_options.index(current_model)
+            if current_model in embedding_options
+            else 0
         )
 
         embedding_model = st.selectbox(
             "Embedding Model",
             options=embedding_options,
             index=model_index,
-            help="Model used to convert text into embeddings for search. Local models avoid API cost.",
+            help=(
+                "Model used to convert text into embeddings for search. "
+                "Local models avoid API cost."
+            ),
         )
 
         st.markdown("### ⚙️ Features & Flags")
@@ -353,7 +392,10 @@ def render_config_editor_v2(project_path: Path):
         image_enrichment = st.checkbox(
             "Enable Image Enrichment",
             value=embedding_section.get("image_enrichment", False),
-            help="If enabled, OCR will be extracted from screenshots and included in chunk text.",
+            help=(
+                "If enabled, OCR will be extracted from screenshots and included "
+                "in chunk text."
+            ),
         )
 
         # Advanced settings in an expander
@@ -366,7 +408,10 @@ def render_config_editor_v2(project_path: Path):
                 max_value=2.0,
                 value=float(llm_section.get("temperature", 0.4)),
                 step=0.1,
-                help="Controls randomness in LLM responses. Lower = more focused, Higher = more creative",
+                help=(
+                    "Controls randomness in LLM responses. Lower = more focused, "
+                    "Higher = more creative"
+                ),
             )
 
             max_tokens = st.number_input(
@@ -382,7 +427,10 @@ def render_config_editor_v2(project_path: Path):
                 min_value=1,
                 max_value=1000,
                 value=int(embedding_section.get("embed_batch_size", 64)),
-                help="Number of texts to embed in each batch. Higher = faster but more memory usage",
+                help=(
+                    "Number of texts to embed in each batch. Higher = faster but "
+                    "more memory usage"
+                ),
             )
 
         submitted = st.form_submit_button("💾 Save Configuration")
@@ -430,7 +478,9 @@ def render_config_editor_v2(project_path: Path):
 
                     # Save the validated config
                     with config_path.open("w", encoding="utf-8") as f:
-                        yaml.safe_dump(updated_config, f, sort_keys=False, default_flow_style=False)
+                        yaml.safe_dump(
+                            updated_config, f, sort_keys=False, default_flow_style=False
+                        )
 
                     st.success("✅ Configuration saved and validated successfully!")
                     st.rerun()  # Refresh to show updated validation status
@@ -443,9 +493,13 @@ def render_config_editor_v2(project_path: Path):
 
     # Raw YAML editor with validation
     with st.expander("🛠 Advanced: Edit Raw YAML"):
-        st.info("⚠️ Direct YAML editing bypasses form validation. Use with caution.")
+        st.info(
+            "⚠️ Direct YAML editing bypasses form validation. Use with caution."
+        )
 
-        raw_yaml = yaml.safe_dump(config_data, sort_keys=False, default_flow_style=False)
+        raw_yaml = yaml.safe_dump(
+            config_data, sort_keys=False, default_flow_style=False
+        )
         edited_yaml = st.text_area(
             "Raw config.yml",
             value=raw_yaml,
@@ -457,7 +511,9 @@ def render_config_editor_v2(project_path: Path):
         col1, col2 = st.columns([1, 1])
 
         with col1:
-            if st.button("🔍 Validate YAML", key=f"validate_yaml_{project_path.name}"):
+            if st.button(
+                "🔍 Validate YAML", key=f"validate_yaml_{project_path.name}"
+            ):
                 try:
                     parsed_yaml = yaml.safe_load(edited_yaml)
                     is_valid, errors = ProjectManager.validate_config(parsed_yaml)
@@ -473,7 +529,9 @@ def render_config_editor_v2(project_path: Path):
                     st.error(f"❌ Invalid YAML syntax: {e}")
 
         with col2:
-            if st.button("💾 Save Raw YAML", key=f"save_raw_{project_path.name}"):
+            if st.button(
+                "💾 Save Raw YAML", key=f"save_raw_{project_path.name}"
+            ):
                 try:
                     # Validate YAML syntax first
                     parsed_yaml = yaml.safe_load(edited_yaml)

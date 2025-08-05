@@ -41,7 +41,13 @@ def build_chunk(text: str, meta: dict, token_count: int, doc_id: str) -> Chunk:
     chunk_id = uuid.uuid4().hex
     meta_copy = meta.copy()
     meta_copy["id"] = chunk_id
-    return Chunk(doc_id=doc_id, text=text, meta=meta_copy, token_count=token_count, id=chunk_id)
+    return Chunk(
+        doc_id=doc_id,
+        text=text,
+        meta=meta_copy,
+        token_count=token_count,
+        id=chunk_id,
+    )
 
 
 def merge_chunks_with_overlap(
@@ -70,7 +76,8 @@ def merge_chunks_with_overlap(
             if len(chunk_tokens) >= rule.min_tokens or meta.get("image_paths"):
                 chunks.append(build_chunk(chunk_text, meta, len(chunk_tokens), doc_id))
                 logger.debug(
-                    f"[MERGE] Created chunk with {len(chunk_tokens)} tokens (image-aware pass)"
+                    f"[MERGE] Created chunk with {len(chunk_tokens)} tokens "
+                    f"(image-aware pass)"
                 )
             else:
                 logger.debug(

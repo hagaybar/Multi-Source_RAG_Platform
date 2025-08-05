@@ -57,7 +57,9 @@ class PptxIngestor(AbstractIngestor):
                         seen_hashes.add(img_hash)
 
                         image_counter += 1
-                        img_name = f"{file_stem}_slide{slide_number}_img{image_counter}.png"
+                        img_name = (
+                            f"{file_stem}_slide{slide_number}_img{image_counter}.png"
+                        )
                         rel_dir = Path("input") / "cache" / "images"
                         out_path = project_root / rel_dir / img_name
                         out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -68,7 +70,8 @@ class PptxIngestor(AbstractIngestor):
                             logger.info(f"[PPTX] Saved image to: {out_path}")
                         except Exception as img_err:
                             logger.warning(
-                                f"[PPTX] Failed to save image on slide {slide_number}: {img_err}"
+                                f"[PPTX] Failed to save image on slide "
+                                f"{slide_number}: {img_err}"
                             )
                             continue
 
@@ -78,7 +81,9 @@ class PptxIngestor(AbstractIngestor):
                             img_rel = str(rel_to_input)
                             image_paths.append(img_rel)
                         except Exception as e:
-                            logger.warning(f"[PPTX] Failed to compute relative image path: {e}")
+                            logger.warning(
+                                f"[PPTX] Failed to compute relative image path: {e}"
+                            )
                             continue
 
                 # Emit main slide chunk (text + images)
@@ -91,7 +96,9 @@ class PptxIngestor(AbstractIngestor):
                     if image_paths:
                         slide_meta["image_paths"] = image_paths
 
-                    text_content = "\n".join(text_on_slide).strip() or "[Image-only slide]"
+                    text_content = (
+                        "\n".join(text_on_slide).strip() or "[Image-only slide]"
+                    )
                     extracted_data.append((text_content, slide_meta))
 
                 # Presenter notes
@@ -103,7 +110,9 @@ class PptxIngestor(AbstractIngestor):
                             "type": "presenter_notes",
                             "doc_type": "pptx",
                         }
-                        formatted_notes = f"Presenter Notes (Slide {slide_number}):\n{notes_text}"
+                        formatted_notes = (
+                            f"Presenter Notes (Slide {slide_number}):\n{notes_text}"
+                        )
                         extracted_data.append((formatted_notes, notes_meta))
 
         except Exception as e:

@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 from PIL import Image
 import io
@@ -66,7 +65,9 @@ def save_image_pillow(image: Image.Image, output_path: Path) -> None:
         raise e
 
 
-def generate_image_filename(doc_id: str, page_number: int, img_index: int, ext: str = "png") -> str:
+def generate_image_filename(
+    doc_id: str, page_number: int, img_index: int, ext: str = "png"
+) -> str:
     """
     Create a consistent filename for saved image.
     """

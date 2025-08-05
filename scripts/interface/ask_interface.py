@@ -28,7 +28,9 @@ def run_ask(
     prompt = prompt_builder.build_prompt(query=query, context_chunks=chunks)
 
     completer = OpenAICompleter(model_name=model_name)
-    answer = completer.get_completion(prompt=prompt, temperature=temperature, max_tokens=max_tokens)
+    answer = completer.get_completion(
+        prompt=prompt, temperature=temperature, max_tokens=max_tokens
+    )
 
     # Build clean source list
     sources = []

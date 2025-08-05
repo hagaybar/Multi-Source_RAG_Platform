@@ -26,7 +26,9 @@ def get_embedder(project: ProjectManager) -> BaseEmbedder:
     elif provider == "local":
         from .bge_embedder import BGEEmbedder
 
-        _embedder_instance = BGEEmbedder(embedding_cfg.get("model_name", "BAAI/bge-large-en"))
+        _embedder_instance = BGEEmbedder(
+            embedding_cfg.get("model_name", "BAAI/bge-large-en")
+        )
     else:
         raise ValueError(f"Unknown embedding provider: {provider}")
     return _embedder_instance

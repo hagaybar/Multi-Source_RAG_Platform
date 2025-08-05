@@ -7,7 +7,8 @@ def render_answer_with_direction(answer: str):
 
     direction = "rtl" if is_rtl else "ltr"
     styled_html = f"""
-    <div style='direction: {direction}; text-align: left; white-space: pre-wrap; font-size: 1.1em;'>
+    <div style='direction: {direction}; text-align: left; white-space: pre-wrap;
+               font-size: 1.1em;'>
         {answer}
     </div>
     """
@@ -27,7 +28,8 @@ def render_text_block(text: str):
     """
     direction = detect_text_direction(text)
     styled_html = f"""
-    <div style='direction: {direction}; text-align: left; white-space: pre-wrap; font-size: 1.05em;'>
+    <div style='direction: {direction}; text-align: left; white-space: pre-wrap;
+               font-size: 1.05em;'>
         {text}
     </div>
     """

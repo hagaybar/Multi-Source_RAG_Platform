@@ -14,7 +14,8 @@ from scripts.retrieval.image_retriever import ImageRetriever
 
 class RetrievalManager:
     """
-    Central manager for querying over multiple retrievers and applying retrieval strategies.
+    Central manager for querying over multiple retrievers and applying retrieval
+    strategies.
 
     Usage:
         rm = RetrievalManager(project)
@@ -87,7 +88,10 @@ class RetrievalManager:
 
         for q_vec in query_vectors:
             chunk_results = strategy_fn(
-                query_vector=q_vec, retrievers=self.retrievers, top_k=top_k, filters=filters or {}
+                query_vector=q_vec,
+                retrievers=self.retrievers,
+                top_k=top_k,
+                filters=filters or {},
             )
 
             image_results = []

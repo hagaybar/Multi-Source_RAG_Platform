@@ -15,7 +15,8 @@ def clean_email_text(
         remove_quoted_lines: Remove lines starting with '>' (quoted replies).
         remove_reply_blocks: Remove blocks starting with 'On ... wrote:' or 'From:'.
         remove_signature: Remove lines after the signature delimiter.
-        signature_delimiter: The delimiter that marks the start of a signature (default: '-- ').
+        signature_delimiter: The delimiter that marks the start of a signature
+            (default: '-- ').
     Returns:
         Cleaned email text.
     """

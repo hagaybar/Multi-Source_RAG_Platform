@@ -3,7 +3,8 @@ from pathlib import Path
 # CRITICAL: Add project root to Python path for imports
 import sys
 
-project_root = Path(__file__).parent.parent.parent  # Go up from scripts/embeddings/ to project root
+# Go up from scripts/embeddings/ to project root
+project_root = Path(__file__).parent.parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
     print(f"DEBUG: Added to Python path: {project_root}")
@@ -25,7 +26,8 @@ from scripts.utils.chunk_utils import deduplicate_chunks
 
 class UnifiedEmbedder:
     """
-    A general-purpose, agent-ready embedder with batch + async support for OpenAI, local, or custom clients.
+    A general-purpose, agent-ready embedder with batch + async support for
+    OpenAI, local, or custom clients.
 
     Supports:
     - Text deduplication
@@ -66,9 +68,12 @@ class UnifiedEmbedder:
         print(f"DEBUG: chunks_path = {self.chunks_path}")
 
         self.logger.info(
-            f"DEBUG: embedding.use_async_batch config value: {embedding_config.get('use_async_batch', 'NOT_SET')}"
+            f"DEBUG: embedding.use_async_batch config value: "
+            f"{embedding_config.get('use_async_batch', 'NOT_SET')}"
         )
-        self.logger.info(f"DEBUG: self.use_async_batch final value: {self.use_async_batch}")
+        self.logger.info(
+            f"DEBUG: self.use_async_batch final value: {self.use_async_batch}"
+        )
 
         # Handle embedder initialization based on mode
         if self.use_async_batch:
@@ -83,12 +88,16 @@ class UnifiedEmbedder:
             # For regular mode, use the configured embedder
             self.embedder = get_embedder(project)
             self.dim = self.embedder.encode(["probe"])[0].__len__()
-            self.logger.info(f"Embedder type: {type(self.embedder)} | Dimension: {self.dim}")
+            self.logger.info(
+                f"Embedder type: {type(self.embedder)} | Dimension: {self.dim}"
+            )
             print(f"DEBUG: Local embedder type: {type(self.embedder)}")
             print(f"DEBUG: Local embedder dimension: {self.dim}")
 
         self.logger.info(
-            f"Embedder initialized with mode: {self.mode} | batch_size: {self.batch_size} | use_async_batch: {self.use_async_batch}"
+            f"Embedder initialized with mode: {self.mode} | "
+            f"batch_size: {self.batch_size} | "
+            f"use_async_batch: {self.use_async_batch}"
         )
 
         print("=" * 80)
@@ -122,7 +131,9 @@ class UnifiedEmbedder:
     def run_from_folder(self) -> None:
         print("DEBUG: run_from_folder() called")
 
-        image_enrichment = self.config.get("embedding", {}).get("image_enrichment", False)
+        image_enrichment = self.config.get("embedding", {}).get(
+            "image_enrichment", False
+        )
         print(f"DEBUG: image_enrichment = {image_enrichment}")
 
         base_dir = self.project.input_dir
@@ -146,15 +157,18 @@ class UnifiedEmbedder:
                 enriched_chunk_path = enriched_dir / f"chunks_{doc_type}.tsv"
                 if enriched_chunk_path.exists():
                     print(
-                        f"DEBUG: Using enriched chunks for doc_type '{doc_type}': {enriched_chunk_path}"
+                        f"DEBUG: Using enriched chunks for doc_type '{doc_type}': "
+                        f"{enriched_chunk_path}"
                     )
                     chunk_path = enriched_chunk_path
                 else:
                     self.logger.warning(
-                        f"Enrichment enabled, but enriched file not found: {enriched_chunk_path}"
+                        f"Enrichment enabled, but enriched file not found: "
+                        f"{enriched_chunk_path}"
                     )
                     print(
-                        f"WARNING: Enrichment enabled, but no enriched file for doc_type '{doc_type}'"
+                        f"WARNING: Enrichment enabled, but no enriched file for "
+                        f"doc_type '{doc_type}'"
                     )
                     chunk_path = base_chunk_path
             else:
@@ -163,12 +177,16 @@ class UnifiedEmbedder:
             print(f"DEBUG: Loading chunks from: {chunk_path.name}")
             self.logger.info(f"Embedding chunks from: {chunk_path.name}")
             chunks = load_chunks(chunk_path)
-            self.logger.info(f"DEBUG: Loaded {len(chunks)} chunks from {chunk_path.name}")
+            self.logger.info(
+                f"DEBUG: Loaded {len(chunks)} chunks from {chunk_path.name}"
+            )
             all_chunks.extend(chunks)
             # self.run(chunks)
         if not all_chunks:
             print("DEBUG: No chunks loaded from any files - returning")
-            self.logger.warning("No chunks loaded from any files. Aborting embedding run.")
+            self.logger.warning(
+                "No chunks loaded from any files. Aborting embedding run."
+            )
             return
         print(f"DEBUG: Total chunks loaded from all files: {len(all_chunks)}")
         self.run(all_chunks)
@@ -192,7 +210,9 @@ class UnifiedEmbedder:
             grouped.setdefault(doc_type, []).append(chunk)
 
         print(f"DEBUG: Grouped chunks: {[(k, len(v)) for k, v in grouped.items()]}")
-        self.logger.info(f"[DEBUG] Grouped chunks: {[(k, len(v)) for k, v in grouped.items()]}")
+        self.logger.info(
+            f"[DEBUG] Grouped chunks: {[(k, len(v)) for k, v in grouped.items()]}"
+        )
 
         for doc_type, chunk_group in grouped.items():
             print(f"\nDEBUG: Processing doc_type: {doc_type}")
@@ -200,7 +220,8 @@ class UnifiedEmbedder:
             print(f"DEBUG: use_async_batch check: {self.use_async_batch}")
 
             self.logger.info(
-                f"[DEBUG] Processing doc_type: {doc_type}, use_async_batch: {self.use_async_batch}"
+                f"[DEBUG] Processing doc_type: {doc_type}, "
+                f"use_async_batch: {self.use_async_batch}"
             )
 
             if self.use_async_batch:
@@ -211,7 +232,10 @@ class UnifiedEmbedder:
                 print(f"DEBUG: CALLING _embed_and_store for {doc_type}")
                 self.logger.info(f"[DEBUG] Calling _embed_and_store for {doc_type}")
                 if self.embedder is None:
-                    error_msg = "Local embedder not initialized. Cannot run non-async batch mode."
+                    error_msg = (
+                        "Local embedder not initialized. "
+                        "Cannot run non-async batch mode."
+                    )
                     print(f"ERROR: {error_msg}")
                     raise RuntimeError(error_msg)
                 self._embed_and_store(doc_type, chunk_group)
@@ -221,7 +245,10 @@ class UnifiedEmbedder:
         print("=" * 80)
 
     def _embed_and_store(self, doc_type: str, chunks: List[Chunk]) -> None:
-        print(f"\nDEBUG: _embed_and_store() called for {doc_type} with {len(chunks)} chunks")
+        print(
+            f"\nDEBUG: _embed_and_store() called for {doc_type} with "
+            f"{len(chunks)} chunks"
+        )
 
         faiss_path = self.project.get_faiss_path(doc_type)
         meta_path = self.project.get_metadata_path(doc_type)
@@ -236,13 +263,17 @@ class UnifiedEmbedder:
                             meta = json.loads(line)
                             existing_ids.add(meta["id"])
                         except json.JSONDecodeError as e:
-                            self.logger.warning(f"Skipping malformed JSON line: {line[:100]}...")
+                            self.logger.warning(
+                                f"Skipping malformed JSON line: {line[:100]}..."
+                            )
                             continue
         else:
             index = faiss.IndexFlatL2(self.dim)
 
         existing_hashes = self._get_existing_hashes(doc_type)
-        new_chunks = deduplicate_chunks(chunks, existing_hashes, self.skip_duplicates, self.logger)
+        new_chunks = deduplicate_chunks(
+            chunks, existing_hashes, self.skip_duplicates, self.logger
+        )
 
         if not new_chunks:
             self.logger.info("No new chunks to embed.")
@@ -271,7 +302,10 @@ class UnifiedEmbedder:
         end = time.time()
 
         self.logger.info(f"Embedded {len(vectors)} vectors in {end - start:.2f}s")
-        print(f"DEBUG: Embedded {len(vectors)} vectors in {end - start:.2f}s using LOCAL embedder")
+        print(
+            f"DEBUG: Embedded {len(vectors)} vectors in {end - start:.2f}s "
+            f"using LOCAL embedder"
+        )
 
         emb_array = np.vstack(vectors).astype("float32")
         index.add(emb_array)
@@ -292,7 +326,9 @@ class UnifiedEmbedder:
         print(f"DEBUG:   - chunks: {len(chunks)}")
         print(f"DEBUG:   - use_async_batch: {self.use_async_batch}")
 
-        self.logger.info(f"Running async batch for doc_type={doc_type}, chunks={len(chunks)}")
+        self.logger.info(
+            f"Running async batch for doc_type={doc_type}, chunks={len(chunks)}"
+        )
 
         # Only supports OpenAI for now
         try:
@@ -315,11 +351,17 @@ class UnifiedEmbedder:
         existing_hashes = self._get_existing_hashes(doc_type)
         print(f"DEBUG: Found {len(existing_hashes)} existing content hashes")
 
-        from scripts.utils.chunk_utils import deduplicate_chunks  # if not already imported
+        # Import deduplicate_chunks if not already imported
+        from scripts.utils.chunk_utils import deduplicate_chunks
 
-        new_chunks = deduplicate_chunks(chunks, existing_hashes, self.skip_duplicates, self.logger)
+        new_chunks = deduplicate_chunks(
+            chunks, existing_hashes, self.skip_duplicates, self.logger
+        )
 
-        print(f"DEBUG: Deduplicated chunks: {len(new_chunks)} out of {len(chunks)} original")
+        print(
+            f"DEBUG: Deduplicated chunks: {len(new_chunks)} out of "
+            f"{len(chunks)} original"
+        )
 
         print(f"DEBUG: After deduplication:")
         print(f"DEBUG:   - Original chunks: {len(chunks)}")
@@ -339,23 +381,33 @@ class UnifiedEmbedder:
         print(f"DEBUG:   - custom_ids length: {len(custom_ids)}")
         print(f"DEBUG:   - First few custom_ids: {custom_ids[:3]}")
 
-        self.logger.info(f"Submitting async batch job to OpenAI: {len(chunk_texts)} chunks")
+        self.logger.info(
+            f"Submitting async batch job to OpenAI: {len(chunk_texts)} chunks"
+        )
 
-        # BatchEmbedder handles everything: JSONL creation, submission, waiting, download
+        # BatchEmbedder handles everything: JSONL creation, submission, waiting,
+        # download
         print("DEBUG: Creating BatchEmbedder instance...")
         batch_embedder = BatchEmbedder(
-            model="text-embedding-3-large", output_dir=self.project.output_dir, logger=self.logger
+            model="text-embedding-3-large",
+            output_dir=self.project.output_dir,
+            logger=self.logger
         )
         print(f"DEBUG: BatchEmbedder created: {batch_embedder}")
 
-        # This will automatically create JSONL, submit to OpenAI, wait for completion, and return results
+        # This will automatically create JSONL, submit to OpenAI, wait for
+        # completion, and return results
         print("DEBUG: About to call BatchEmbedder.run() - THIS SHOULD CALL OPENAI!")
-        print("DEBUG: If you don't see OpenAI API calls after this, the issue is in BatchEmbedder")
+        print(
+            "DEBUG: If you don't see OpenAI API calls after this, "
+            "the issue is in BatchEmbedder"
+        )
 
         try:
             result_dict = batch_embedder.run(chunk_texts, ids=custom_ids)
             print(
-                f"DEBUG: BatchEmbedder.run() returned: {type(result_dict)} with {len(result_dict)} items"
+                f"DEBUG: BatchEmbedder.run() returned: {type(result_dict)} with "
+                f"{len(result_dict)} items"
             )
         except Exception as e:
             print(f"ERROR: BatchEmbedder.run() failed: {e}")
@@ -404,9 +456,12 @@ class UnifiedEmbedder:
                 chunk.meta["text"] = chunk.text  # ← inject text into metadata
                 f.write(json.dumps(chunk.meta) + "\n")
 
-        print(f"DEBUG: Saved metadata for {len(successful_chunks)} chunks to {meta_path}")
+        print(
+            f"DEBUG: Saved metadata for {len(successful_chunks)} chunks to {meta_path}"
+        )
         self.logger.info(
-            f"Async batch embedding complete. Stored {len(vectors)} vectors and metadata."
+            f"Async batch embedding complete. Stored {len(vectors)} vectors and "
+            f"metadata."
         )
 
         print("=" * 100)
@@ -430,7 +485,9 @@ class UnifiedEmbedder:
                         if content_hash:
                             existing_hashes.add(content_hash)
                     except json.JSONDecodeError:
-                        self.logger.warning(f"Skipping malformed metadata line: {line[:100]}")
+                        self.logger.warning(
+                            f"Skipping malformed metadata line: {line[:100]}"
+                        )
                         continue
 
         return existing_hashes

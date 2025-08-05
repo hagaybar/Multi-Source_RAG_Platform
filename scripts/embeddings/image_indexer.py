@@ -67,7 +67,13 @@ class ImageIndexer:
                         chunk.description.strip().encode("utf-8")
                     ).hexdigest()
 
-                record = {"id": chunk.id, "description": chunk.description, **chunk.meta}
+                record = {
+                    "id": chunk.id,
+                    "description": chunk.description,
+                    **chunk.meta,
+                }
                 f.write(json.dumps(record) + "\n")
 
-        self.logger.info(f"Wrote {len(image_chunks)} metadata records to {self.meta_path}.")
+        self.logger.info(
+            f"Wrote {len(image_chunks)} metadata records to {self.meta_path}."
+        )
