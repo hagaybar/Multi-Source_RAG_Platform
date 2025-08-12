@@ -1,5 +1,5 @@
 # tests/test_chunker_paragraph.py
-from scripts.chunking.chunker_v3 import merge_chunks_with_overlap
+from scripts.chunking.chunking_strategies import merge_chunks_with_overlap
 from scripts.chunking.rules_v3 import ChunkRule
 
 import re
