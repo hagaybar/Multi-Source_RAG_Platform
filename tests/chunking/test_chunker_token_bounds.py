@@ -5,7 +5,7 @@ import re
 
 
 def test_split_enforces_max_tokens():
-    para = "word " * 30    # 30 tokens per paragraph
+    para = "word " * 30  # 30 tokens per paragraph
     doc = "\n\n".join([para] * 10)  # 10 x 30 = 300 tokens
     meta = {"doc_type": "test_txt_small"}
 

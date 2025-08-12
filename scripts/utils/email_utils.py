@@ -1,11 +1,12 @@
 import re
 
+
 def clean_email_text(
     text: str,
     remove_quoted_lines: bool = True,
     remove_reply_blocks: bool = True,
     remove_signature: bool = True,
-    signature_delimiter: str = "-- "
+    signature_delimiter: str = "-- ",
 ) -> str:
     """
     Clean email text by removing quoted lines, reply blocks, and/or signatures.
@@ -14,7 +15,8 @@ def clean_email_text(
         remove_quoted_lines: Remove lines starting with '>' (quoted replies).
         remove_reply_blocks: Remove blocks starting with 'On ... wrote:' or 'From:'.
         remove_signature: Remove lines after the signature delimiter.
-        signature_delimiter: The delimiter that marks the start of a signature (default: '-- ').
+        signature_delimiter: The delimiter that marks the start of a signature
+            (default: '-- ').
     Returns:
         Cleaned email text.
     """
@@ -43,4 +45,4 @@ def clean_email_text(
 
         cleaned_lines.append(line)
 
-    return "\n".join(cleaned_lines).strip() 
+    return "\n".join(cleaned_lines).strip()

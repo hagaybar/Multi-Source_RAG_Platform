@@ -16,23 +16,26 @@ from scripts.chunking.rules_v3 import ChunkRule
 from scripts.chunking.rules_v3 import get_rule
 from scripts.utils.email_utils import clean_email_text
 import spacy
+
 # # Logging setup
 # Ensure you have a logger set up for your application
 from scripts.utils.logger import LoggerManager
+
 # Default logger - will be used if no project-specific logger is provided
 _default_logger = LoggerManager.get_logger("chunker")
 
 # --- regex patterns ----------------------------------------------------------
 PARA_REGEX = re.compile(r"\n\s*\n")  # one or more blank lines
-EMAIL_BLOCK_REGEX = re.compile(r"(\n\s*(?:From:|On .* wrote:))")  # email block separator with capturing group
-
-
+EMAIL_BLOCK_REGEX = re.compile(
+    r"(\n\s*(?:From:|On .* wrote:))"
+)  # email block separator with capturing group
 
 
 # --- helpers -----------------------------------------------------------------
 def _token_count(text: str) -> int:
     """Very rough token counter; will be replaced by real tokenizer later."""
     return len(text.split())
+
 
 def build_chunk(text: str, meta: dict, token_count: int, doc_id: str) -> Chunk:
     chunk_id = uuid.uuid4().hex
@@ -43,10 +46,13 @@ def build_chunk(text: str, meta: dict, token_count: int, doc_id: str) -> Chunk:
         text=text,
         meta=meta_copy,
         token_count=token_count,
-        id=chunk_id
+        id=chunk_id,
     )
 
-def merge_chunks_with_overlap(paragraphs: list[str], meta: dict, rule: ChunkRule, logger=None) -> list[Chunk]:
+
+def merge_chunks_with_overlap(
+    paragraphs: list[str], meta: dict, rule: ChunkRule, logger=None
+) -> list[Chunk]:
     if logger is None:
         logger = _default_logger
 
@@ -69,12 +75,16 @@ def merge_chunks_with_overlap(paragraphs: list[str], meta: dict, rule: ChunkRule
             chunk_text = " ".join(chunk_tokens)
             if len(chunk_tokens) >= rule.min_tokens or meta.get("image_paths"):
                 chunks.append(build_chunk(chunk_text, meta, len(chunk_tokens), doc_id))
-                logger.debug(f"[MERGE] Created chunk with {len(chunk_tokens)} tokens (image-aware pass)")
+                logger.debug(
+                    f"[MERGE] Created chunk with {len(chunk_tokens)} tokens "
+                    f"(image-aware pass)"
+                )
             else:
-                logger.debug(f"[MERGE] Skipped chunk with only {len(chunk_tokens)} tokens and no image_paths")
+                logger.debug(
+                    f"[MERGE] Skipped chunk with only {len(chunk_tokens)} tokens and no image_paths"
+                )
 
-
-            prev_tail_tokens = chunk_tokens[-rule.overlap:] if rule.overlap else []
+            prev_tail_tokens = chunk_tokens[-rule.overlap :] if rule.overlap else []
             buffer = []
             buffer_tokens = 0
             # logger.debug(f"[MERGE] Tail tokens kept for overlap: {len(prev_tail_tokens)}")
@@ -99,22 +109,22 @@ def merge_chunks_with_overlap(paragraphs: list[str], meta: dict, rule: ChunkRule
     return chunks
 
 
-
-
 def split(text: str, meta: dict, clean_options: dict = None, logger=None) -> list[Chunk]:
     if logger is None:
         logger = _default_logger
     # Validate doc_type presence in meta
     doc_type = meta.get('doc_type')
-    if not doc_type: # Covers None or empty string
-        raise ValueError("`doc_type` must be present in `meta` and non-empty to determine chunking strategy.")
+    if not doc_type:  # Covers None or empty string
+        raise ValueError(
+            "`doc_type` must be present in `meta` and non-empty to determine chunking strategy."
+        )
 
     if clean_options is None:
         clean_options = {
             "remove_quoted_lines": True,
             "remove_reply_blocks": True,
             "remove_signature": True,
-            "signature_delimiter": "-- "
+            "signature_delimiter": "-- ",
         }
 
     # Clean the email text using the provided options
@@ -133,14 +143,13 @@ def split(text: str, meta: dict, clean_options: dict = None, logger=None) -> lis
     elif rule.strategy == "split_on_rows":
         # Each line in the text is a row from the CSV
         items = [row.strip() for row in cleaned_text.strip().split('\n') if row.strip()]
-    elif rule.strategy in ("by_email_block","eml"):
+    elif rule.strategy in ("by_email_block", "eml"):
         # Split the cleaned text into sentences using spaCy
         nlp = spacy.load("en_core_web_sm")
         doc = nlp(cleaned_text)
         items = [sent.text.strip() for sent in doc.sents if sent.text.strip()]
     else:
         raise ValueError(f"Unsupported strategy: {rule.strategy}")
-    
 
     # logger.debug(f"[SPLIT] Raw text length: {len(text)}")
     # logger.debug(f"[SPLIT] Using strategy: {rule.strategy}")
@@ -148,7 +157,4 @@ def split(text: str, meta: dict, clean_options: dict = None, logger=None) -> lis
     # for i, item in enumerate(items):
     #     logger.debug(f"[SPLIT] Paragraph {i+1} ({_token_count(item)} tokens): {repr(item[:60])}...")
 
-
     return merge_chunks_with_overlap(items, meta, rule, logger)
-
-

@@ -8,6 +8,7 @@ class RawDoc:
     Represents a raw document extracted by an ingestor,
     before chunking.
     """
+
     content: str
     metadata: dict
 
@@ -38,4 +39,5 @@ class AbstractIngestor(ABC):
 
 class UnsupportedFileError(Exception):
     """Custom exception for unsupported file types or corrupted files."""
+
     pass

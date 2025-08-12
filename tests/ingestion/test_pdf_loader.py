@@ -9,9 +9,10 @@ from scripts.ingestion.models import UnsupportedFileError
 # Fixture paths
 # -------------------------------------------------------------------
 FIXTURES_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "pdf"
-SIMPLE_PDF     = FIXTURES_DIR / "simple.pdf"
-ENCRYPTED_PDF  = FIXTURES_DIR / "encrypted.pdf"
-NO_TEXT_PDF    = FIXTURES_DIR / "no_text.pdf"
+SIMPLE_PDF = FIXTURES_DIR / "simple.pdf"
+ENCRYPTED_PDF = FIXTURES_DIR / "encrypted.pdf"
+NO_TEXT_PDF = FIXTURES_DIR / "no_text.pdf"
+
 
 # -------------------------------------------------------------------
 # Helper – create minimal PDFs if they’re missing
@@ -45,11 +46,12 @@ def _create_test_pdfs_if_not_exist() -> None:
 
     if not NO_TEXT_PDF.exists():
         c = canvas.Canvas(str(NO_TEXT_PDF))
-        c.showPage()      # blank page → no extractable text
+        c.showPage()  # blank page → no extractable text
         c.save()
 
 
 _create_test_pdfs_if_not_exist()
+
 
 # -------------------------------------------------------------------
 # Tests

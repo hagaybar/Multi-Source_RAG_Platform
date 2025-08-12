@@ -7,7 +7,6 @@ from scripts.ui.validation_helpers import validate_steps
 from scripts.pipeline.runner import PipelineRunner
 
 
-
 def render_custom_pipeline_tab():
     st.header("🧪 Custom Pipeline Runner")
     st.info("Run selected steps of the RAG pipeline with safety checks.")
@@ -22,8 +21,6 @@ def render_custom_pipeline_tab():
     if not all_projects:
         st.warning("No projects available.")
         return
-    
-
 
     project_names = [p.name for p in all_projects]
     selected_name = st.selectbox("Select a project", project_names)
@@ -32,40 +29,35 @@ def render_custom_pipeline_tab():
 
     st.write("Loaded project at:", project.root_dir)
 
-
     st.markdown("---")
 
     # Step 2: Step selection
     st.markdown("### ✅ Select Steps to Run")
     # Derive step names from PipelineRunner.step_<name> methods
     step_methods = [m for m in dir(PipelineRunner) if m.startswith("step_")]
-    raw_steps   = [m.replace("step_", "") for m in step_methods]
+    raw_steps = [m.replace("step_", "") for m in step_methods]
 
     logical_order = [
-    "ingest",
-    "chunk",
-    "embed",
-    "enrich",
-    "index",
-    "index_images",
-    "retrieve",
-    "ask",
+        "ingest",
+        "chunk",
+        "embed",
+        "enrich",
+        "index",
+        "index_images",
+        "retrieve",
+        "ask",
     ]
     ordered = []
     # include steps in your preferred order, if they exist
     for name in logical_order:
         if name in raw_steps:
             ordered.append(name)
-    
+
     # then append any extra steps you didn’t anticipate, alphabetically
     extras = sorted(s for s in raw_steps if s not in ordered)
     step_choices = ordered + extras
 
-
-    selected_steps = st.multiselect(
-    "Pipeline Steps", 
-    step_choices, 
-    default=[])
+    selected_steps = st.multiselect("Pipeline Steps", step_choices, default=[])
     # DEBUG: inspect what the multiselect is returning
     st.write("🔍 Debug – selected_steps:", selected_steps)
 
@@ -78,13 +70,13 @@ def render_custom_pipeline_tab():
     run_disabled = not selected_steps
     if st.button("🚀 Run Selected Steps", disabled=run_disabled):
         unique_steps = list(dict.fromkeys(selected_steps))
-        st.write("▶️ Unique steps to run:", unique_steps) 
+        st.write("▶️ Unique steps to run:", unique_steps)
 
         # 1️⃣ Validate selection
         is_valid, messages = validate_steps(project, unique_steps, query)
         if not is_valid:
             for msg in messages:
-                st.error(msg)  # show errors  
+                st.error(msg)  # show errors
             st.stop()
         # If valid, any messages are warnings
         for msg in messages:
@@ -100,7 +92,7 @@ def render_custom_pipeline_tab():
             else:
                 # st.write("▶️ About to register these steps:", selected_steps)
                 runner.add_step(step)
-                # Note: add_step(name, **kwargs) queues up your steps :contentReference[oaicite:2]{index=2}
+                # Note: add_step(name, **kwargs) queues up your steps
 
         # 4️⃣ Execute & stream logs
 

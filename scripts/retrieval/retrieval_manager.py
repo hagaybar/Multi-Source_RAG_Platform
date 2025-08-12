@@ -14,7 +14,8 @@ from scripts.retrieval.image_retriever import ImageRetriever
 
 class RetrievalManager:
     """
-    Central manager for querying over multiple retrievers and applying retrieval strategies.
+    Central manager for querying over multiple retrievers and applying retrieval
+    strategies.
 
     Usage:
         rm = RetrievalManager(project)
@@ -36,7 +37,8 @@ class RetrievalManager:
     def _load_retrievers(self) -> Dict[str, BaseRetriever]:
         retrievers = {}
         doc_types = [
-            f.stem for f in self.project.faiss_dir.glob("*.faiss")
+            f.stem
+            for f in self.project.faiss_dir.glob("*.faiss")
             if (self.project.get_metadata_path(f.stem)).exists()
         ]
 
@@ -67,7 +69,7 @@ class RetrievalManager:
         query: str,
         top_k: int = 5,
         strategy: str = "late_fusion",
-        filters: Optional[Dict] = None
+        filters: Optional[Dict] = None,
     ) -> List[Chunk]:
         if strategy not in STRATEGY_REGISTRY:
             raise ValueError(f"Unknown strategy: {strategy}")
@@ -89,7 +91,7 @@ class RetrievalManager:
                 query_vector=q_vec,
                 retrievers=self.retrievers,
                 top_k=top_k,
-                filters=filters or {}
+                filters=filters or {},
             )
 
             image_results = []
@@ -108,10 +110,12 @@ class RetrievalManager:
                 source_id = chunk.meta.get("source_chunk_id")
                 if source_id and source_id in chunk_map:
                     parent = chunk_map[source_id]
-                    parent.meta.setdefault("image_summaries", []).append({
-                        "image_path": chunk.meta.get("image_path"),
-                        "description": chunk.description
-                    })
+                    parent.meta.setdefault("image_summaries", []).append(
+                        {
+                            "image_path": chunk.meta.get("image_path"),
+                            "description": chunk.description,
+                        }
+                    )
                     parent.meta["promoted_by_image"] = True
                     parent.meta["image_similarity"] = chunk.meta.get("similarity", 0)
                     promoted_ids.append(source_id)
@@ -121,16 +125,18 @@ class RetrievalManager:
 
         # Only return image chunks that don't have a matching text chunk
         image_results_filtered = [
-            chunk for chunk in all_results
+            chunk
+            for chunk in all_results
             if hasattr(chunk, "description") and chunk.meta.get("source_chunk_id") not in chunk_map
         ]
 
         final = list(chunk_map.values()) + image_results_filtered
         return deduplicate_chunks(final, existing_hashes=set(), skip_duplicates=True)
 
-
     def translate_to_english(text: str) -> str:
         # Placeholder translation logic (real version should call a translation service)
         if text.strip().startswith("שלום"):
-            return "The university is replacing its encryption certificate. What should we do in Alma?"
+            return (
+                "The university is replacing its encryption certificate. What should we do in Alma?"
+            )
         return text

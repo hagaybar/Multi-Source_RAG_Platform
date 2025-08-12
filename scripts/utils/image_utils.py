@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 from PIL import Image
 import io
@@ -10,15 +9,14 @@ logger = LoggerManager.get_logger("image_utils")
 
 def infer_project_root(doc_path: Path) -> Path:
     """
-    Given a path like .../data/projects/<project>/input/raw/..., 
+    Given a path like .../data/projects/<project>/input/raw/...,
     return: Path("data/projects/<project>")
     """
     parts = doc_path.resolve().parts
     for i in range(len(parts) - 2):
         if parts[i] == "data" and parts[i + 1] == "projects":
-            return Path(*parts[:i + 3])  # includes 'data/projects/<project>'
+            return Path(*parts[: i + 3])  # includes 'data/projects/<project>'
     raise ValueError(f"Could not infer project root from: {doc_path}")
-
 
 
 def get_project_image_dir(project_name: str) -> Path:
@@ -67,7 +65,9 @@ def save_image_pillow(image: Image.Image, output_path: Path) -> None:
         raise e
 
 
-def generate_image_filename(doc_id: str, page_number: int, img_index: int, ext: str = "png") -> str:
+def generate_image_filename(
+    doc_id: str, page_number: int, img_index: int, ext: str = "png"
+) -> str:
     """
     Create a consistent filename for saved image.
     """

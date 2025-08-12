@@ -4,6 +4,7 @@ It features `LoggerManager` for creating and managing logger instances with
 various handlers (file, console) and formats (text, colored, JSON), and
 `JsonLogFormatter` for producing structured JSON logs.
 """
+
 import os
 import sys
 import logging
@@ -12,6 +13,7 @@ from typing import Optional
 
 try:
     from colorlog import ColoredFormatter
+
     COLORLOG_AVAILABLE = True
 except ImportError:
     COLORLOG_AVAILABLE = False
@@ -37,35 +39,43 @@ class LoggerManager:
       `TaskPaths` object (if provided, allowing for task-specific log organization,
       potentially with `run_id` subdirectories), or fall back to a default
       directory. The class ensures necessary log directories are created.
-    - **No Duplicate Propagation**: Logger propagation is disabled (`propagate = False`)
+    - **No Duplicate Propagation**: Logger propagation is disabled
+      (`propagate = False`)
       to avoid messages being handled multiple times by ancestor loggers.
 
     The `_loggers` class attribute stores references to already created loggers
     to ensure their singleton nature.
     """
+
     _loggers = {}
     _default_log_dir = "logs"
 
     @classmethod
-    def get_logger(cls, 
-                   name: str,
-                   log_file: Optional[str] = None,
-                   level: str = "DEBUG",
-                   use_json: bool = False,
-                   use_color: bool = True,
-                   task_paths: Optional[object] = None,
-                   run_id: Optional[str] = None) -> logging.Logger:
+    def get_logger(
+        cls,
+        name: str,
+        log_file: Optional[str] = None,
+        level: str = "DEBUG",
+        use_json: bool = False,
+        use_color: bool = True,
+        task_paths: Optional[object] = None,
+        run_id: Optional[str] = None,
+    ) -> logging.Logger:
         """
         Retrieve or create a logger configured for console and file output.
 
         Args:
             name (str): A unique identifier (typically module or task name).
-            log_file (Optional[str]): Full path to a log file. Overrides task_paths if set.
+            log_file (Optional[str]): Full path to a log file. Overrides
+                task_paths if set.
             level (str): Logging level threshold ("DEBUG", "INFO", etc.).
             use_json (bool): If True, format file logs as JSON (for parsing).
-            use_color (bool): If True and colorlog is available, enable colored console output.
-            task_paths (Optional[object]): An instance of TaskPaths to resolve log file path.
-            run_id (Optional[str]): Optional run identifier used to create per-run logs.
+            use_color (bool): If True and colorlog is available, enable colored
+                console output.
+            task_paths (Optional[object]): An instance of TaskPaths to resolve
+                log file path.
+            run_id (Optional[str]): Optional run identifier used to create
+                per-run logs.
 
         Returns:
             logging.Logger: A fully configured logger instance.
@@ -100,9 +110,10 @@ class LoggerManager:
         cls._loggers[logger_key] = logger
         return logger
 
-
     @staticmethod
-    def _setup_file_handler(filepath: str, level: str, use_json: bool) -> logging.Handler:
+    def _setup_file_handler(
+        filepath: str, level: str, use_json: bool
+    ) -> logging.Handler:
         """
         Creates and configures a file handler for logging.
 
@@ -139,13 +150,16 @@ class LoggerManager:
         return handler
 
     @staticmethod
-    def _get_formatter(use_json: bool = False, color: bool = False) -> logging.Formatter:
+    def _get_formatter(
+        use_json: bool = False, color: bool = False
+    ) -> logging.Formatter:
         """
         Returns a log formatter object based on configuration.
 
         Args:
             use_json (bool): If True, returns a JSON formatter (for structured logs).
-            color (bool): If True and colorlog is installed, returns a colored formatter.
+            color (bool): If True and colorlog is installed, returns a colored
+                formatter.
 
         Returns:
             logging.Formatter: A formatter instance.
@@ -166,7 +180,7 @@ class LoggerManager:
                     'WARNING': 'yellow',
                     'ERROR': 'red',
                     'CRITICAL': 'bold_red',
-                }
+                },
             )
         else:
             return logging.Formatter(fmt, datefmt)
@@ -190,6 +204,7 @@ class JsonLogFormatter(logging.Formatter):
 
     Supports extra data via `extra={"extra_data": {...}}` in logging calls.
     """
+
     def format(self, record: logging.LogRecord) -> str:
         log_record = {
             "timestamp": self.formatTime(record, "%Y-%m-%d %H:%M:%S"),

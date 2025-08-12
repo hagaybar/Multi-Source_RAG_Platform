@@ -10,7 +10,6 @@ from scripts.utils.logger import LoggerManager
 
 
 class ImageInsightAgent(AgentProtocol):
-    
     def __init__(self, project: ProjectManager):
         self.project = project
         agent_cfg = project.config.get("agents", {})
@@ -24,11 +23,8 @@ class ImageInsightAgent(AgentProtocol):
             raise ValueError("ImageInsightAgent requires a valid prompt template.")
         print(f"[DEBUG] Using model: {self.model_name}")
         print(f"[DEBUG] Output mode: {self.output_mode}")
-        
-
 
         self.logger = LoggerManager.get_logger(__name__)
-
 
     def run(self, chunk: Chunk, project: ProjectManager) -> list:
         image_paths = chunk.meta.get("image_paths", [])
@@ -50,7 +46,9 @@ class ImageInsightAgent(AgentProtocol):
             try:
                 encoded_image = self.encode_image(full_path)
                 completer = OpenAICompleter(model_name=self.model_name)
-                insight = completer.get_multimodal_completion(prompt=prompt, image_b64=encoded_image)
+                insight = completer.get_multimodal_completion(
+                    prompt=prompt, image_b64=encoded_image
+                )
             except Exception as e:
                 self.logger.error(f"Failed to enrich {image_path}: {e}")
                 continue
@@ -65,9 +63,7 @@ class ImageInsightAgent(AgentProtocol):
             }
 
             image_chunk = ImageChunk(
-                id=str(uuid.uuid4()),
-                description=insight,
-                meta=image_meta
+                id=str(uuid.uuid4()), description=insight, meta=image_meta
             )
             image_chunks.append(image_chunk)
 
@@ -76,14 +72,10 @@ class ImageInsightAgent(AgentProtocol):
 
         # Default: append summaries to chunk.meta
         chunk.meta["image_summaries"] = [
-            {
-                "image_path": ic.meta["image_path"],
-                "description": ic.description
-            }
+            {"image_path": ic.meta["image_path"], "description": ic.description}
             for ic in image_chunks
         ]
         return [chunk]
-
 
     def encode_image(self, path: Path) -> str:
         with open(path, "rb") as f:

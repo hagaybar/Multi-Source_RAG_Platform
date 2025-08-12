@@ -1,6 +1,7 @@
 # ─────────────────────────────────────────────
 # 🔧 Standard Library Imports
 # ─────────────────────────────────────────────
+from datetime import datetime
 import json
 import csv
 import uuid
@@ -49,26 +50,29 @@ from scripts.prompting.prompt_builder import PromptBuilder
 # ─────────────────────────────────────────────
 from scripts.utils.logger import LoggerManager
 from scripts.utils.chunk_utils import load_chunks
+from scripts.utils.run_logger import RunLogger
 
 # ─────────────────────────────────────────────
 
 
 class PipelineRunner:
     """
-    Orchestrates sequential execution of modular pipeline steps (ingest, chunk, enrich, embed, index).
+    Orchestrates sequential execution of modular pipeline steps
+    (ingest, chunk, enrich, embed, index).
     """
 
     def __init__(self, project: ProjectManager, config: dict):
         self.project = project
         self.config = config
         self.steps: list[tuple[str, dict]] = []
-        self.logger = LoggerManager.get_logger("PipelineRunner", log_file=project.get_log_path("pipeline"))
+        self.logger = LoggerManager.get_logger(
+            "PipelineRunner", log_file=project.get_log_path("pipeline")
+        )
         self.raw_docs: list[RawDoc] = []  # ← Store output of ingest
         self.seen_hashes: set[str] = set()  # ← Optional deduplication base
         self.chunks: list[Chunk] = []
         self.retrieved_chunks = []
         self.last_answer = None
-
 
     def add_step(self, name: str, **kwargs) -> None:
         """
@@ -77,7 +81,9 @@ class PipelineRunner:
         """
         method_name = f"step_{name}"
         if not hasattr(self, method_name):
-            raise ValueError(f"Step '{name}' is not implemented (missing method: {method_name})")
+            raise ValueError(
+                f"Step '{name}' is not implemented (missing method: {method_name})"
+            )
 
         self.steps.append((name, kwargs))
         self.logger.info("Step added: %s %s", name, kwargs)
@@ -135,7 +141,9 @@ class PipelineRunner:
         """
         yield "📥 Starting ingestion..."
 
-        ingestion_manager = IngestionManager(log_file=self.project.get_log_path("ingestion"))
+        ingestion_manager = IngestionManager(
+            log_file=self.project.get_log_path("ingestion")
+        )
         path = path or self.project.input_dir / "raw"
 
         if not path.exists():
@@ -161,7 +169,9 @@ class PipelineRunner:
                 new_docs.append(doc)
                 self.seen_hashes.add(doc_hash)
             else:
-                self.logger.info("Duplicate skipped: %s", doc.metadata.get("source_filepath"))
+                self.logger.info(
+                    "Duplicate skipped: %s", doc.metadata.get("source_filepath")
+                )
 
         self.raw_docs = new_docs
         yield f"✅ Ingested {len(new_docs)} unique documents from {path.name}"
@@ -190,8 +200,12 @@ class PipelineRunner:
             meta["doc_id"] = doc_id
 
             # Optional debug
-            self.logger.debug("Chunking doc_id: %s, paragraph: %s, image_paths: %s",
-                            doc_id, meta.get("paragraph_number"), meta.get("image_paths"))
+            self.logger.debug(
+                "Chunking doc_id: %s, paragraph: %s, image_paths: %s",
+                doc_id,
+                meta.get("paragraph_number"),
+                meta.get("image_paths"),
+            )
 
             try:
                 chunks = chunk_text(doc.content, meta)
@@ -222,13 +236,15 @@ class PipelineRunner:
                     writer = csv.writer(f, delimiter="\t")
                     writer.writerow(["chunk_id", "doc_id", "text", "token_count", "meta_json"])
                     for chunk in chunks:
-                        writer.writerow([
-                            chunk.id,
-                            chunk.doc_id,
-                            chunk.text,
-                            chunk.token_count,
-                            json.dumps(chunk.meta)
-                        ])
+                        writer.writerow(
+                            [
+                                chunk.id,
+                                chunk.doc_id,
+                                chunk.text,
+                                chunk.token_count,
+                                json.dumps(chunk.meta),
+                            ]
+                        )
                 yield f"💾 Saved {len(chunks)} chunks to: {chunk_path.name}"
             except Exception as e:
                 yield f"❌ Failed to write chunks_{doc_type}.tsv: {e}"
@@ -275,9 +291,14 @@ class PipelineRunner:
             enriched_path = enriched_dir / f"chunks_{doc_type}.tsv"
 
             # Use enriched if available and enabled
-            path_to_use = enriched_path if image_enrichment_enabled and enriched_path.exists() else chunk_path
+            path_to_use = (
+                enriched_path if image_enrichment_enabled and enriched_path.exists() else chunk_path
+            )
             if image_enrichment_enabled and not enriched_path.exists():
-                yield f"⚠️ Enrichment enabled, but enriched file not found for {doc_type}. Using base chunks."
+                yield (
+                    f"⚠️ Enrichment enabled, but enriched file not found for {doc_type}. "
+                    "Using base chunks."
+                )
 
             yield f"📄 Loading chunks: {path_to_use.name}"
             chunks = load_chunks(path_to_use)
@@ -292,7 +313,6 @@ class PipelineRunner:
 
         yield "📦 Embedding complete for all doc types."
 
-
     def step_enrich(self, overwrite: bool = False, **kwargs) -> Iterator[str]:
         """
         Enrich chunks that contain image references using an image insight agent.
@@ -305,7 +325,9 @@ class PipelineRunner:
         # ─── Fallback: load chunk files from disk ───
         if not self.chunks:
             chunk_paths = list(self.project.input_dir.glob("chunks_*.tsv"))
-            yield f"🐞 DEBUG: found {len(chunk_paths)} chunk file(s): {[p.name for p in chunk_paths]}"
+            yield f"🐞 DEBUG: found {len(chunk_paths)} chunk file(s): {
+                [p.name for p in chunk_paths]
+            }"
 
             if not chunk_paths:
                 yield "❌ No chunks available on disk. Please run 'chunk' first."
@@ -345,7 +367,7 @@ class PipelineRunner:
                         doc_id=chunk.doc_id,
                         text=chunk.text,
                         token_count=chunk.token_count,
-                        meta=temp_meta
+                        meta=temp_meta,
                     )
 
                     result = agent.run(temp_chunk, self.project)
@@ -375,7 +397,10 @@ class PipelineRunner:
         for doc_type, chunks in by_type.items():
             save_path = enriched_dir / f"chunks_{doc_type}.tsv"
             if save_path.exists() and not overwrite:
-                yield f"⚠️ Enriched file already exists: {save_path.name}. Use overwrite=True to replace."
+                yield (
+                    f"⚠️ Enriched file already exists: {save_path.name}. "
+                    "Use overwrite=True to replace."
+                )
                 continue
 
             try:
@@ -383,20 +408,21 @@ class PipelineRunner:
                     writer = csv.writer(f, delimiter="\t")
                     writer.writerow(["chunk_id", "doc_id", "text", "token_count", "meta_json"])
                     for chunk in chunks:
-                        writer.writerow([
-                            chunk.id,
-                            chunk.doc_id,
-                            chunk.text,
-                            chunk.token_count,
-                            json.dumps(chunk.meta)
-                        ])
+                        writer.writerow(
+                            [
+                                chunk.id,
+                                chunk.doc_id,
+                                chunk.text,
+                                chunk.token_count,
+                                json.dumps(chunk.meta),
+                            ]
+                        )
                 yield f"💾 Saved enriched chunks to: {save_path.name}"
             except Exception as e:
                 yield f"❌ Failed to write enriched file: {e}"
                 self.logger.error("Failed to save enriched chunks for %s: %s", doc_type, e)
 
         yield f"✅ Enrichment complete: {count_enriched}/{count_total} chunks enriched"
-
 
     def step_index_images(self, doc_types: list[str] = None, **kwargs) -> Iterator[str]:
         """
@@ -444,7 +470,7 @@ class PipelineRunner:
             try:
                 with open(file_path, encoding="utf-8") as f:
                     reader = csv.reader(f, delimiter="\t")
-                    header = next(reader)
+                    next(reader)  # Skip header
 
                     for row in reader:
                         if len(row) < 5:
@@ -455,9 +481,13 @@ class PipelineRunner:
                         for summary in summaries:
                             description = summary["description"]
                             if not description or not isinstance(description, str):
-                                self.logger.warning("Skipping image with empty or invalid description.")
+                                self.logger.warning(
+                                    "Skipping image with empty or invalid description."
+                                )
                                 continue
-                            img_hash = hashlib.sha256(description.strip().encode("utf-8")).hexdigest()
+                            img_hash = hashlib.sha256(
+                                description.strip().encode("utf-8")
+                            ).hexdigest()
 
                             if img_hash in existing_hashes:
                                 count_skipped += 1
@@ -497,11 +527,16 @@ class PipelineRunner:
                 yield f"❌ Indexing failed for {doc_type}: {e}"
 
         if count_total:
-            yield f"🧠 Image indexing complete. Total indexed: {count_total}, skipped: {count_skipped}"
+            yield (
+                f"🧠 Image indexing complete. "
+                f"Total indexed: {count_total}, skipped: {count_skipped}"
+            )
         else:
             yield f"⚠️ No new image chunks indexed. {count_skipped} duplicates skipped."
 
-    def step_retrieve(self, query: str, top_k: int = 5, strategy: str = "late_fusion", **kwargs) -> Iterator[str]:
+    def step_retrieve(
+        self, query: str, top_k: int = 5, strategy: str = "late_fusion", **kwargs
+    ) -> Iterator[str]:
         """
         Retrieves top-k results (text + image-aware) using late fusion.
         Stores results in self.retrieved_chunks for step_ask() or inspection.
@@ -515,6 +550,30 @@ class PipelineRunner:
             retriever = RetrievalManager(self.project)
             yield f"🔢 Strategy: {strategy}, Top-K: {top_k}"
             chunks = retriever.retrieve(query=query, top_k=top_k, strategy=strategy)
+            # ---- LOGGING ----
+            try:
+                run_logger = RunLogger(self.project.root_dir)
+                run_logger.log_metadata(
+                    {
+                        "query": query,
+                        "top_k": top_k,
+                        "strategy": strategy,
+                        "timestamp": datetime.now().isoformat(),
+                        "pipeline_steps": ["retrieve"],
+                    }
+                )
+                run_logger.log_chunks(chunks)
+
+                # Optional: detect and log image matches
+                image_chunks = [
+                    c for c in chunks if getattr(c, "description", None) and "image_path" in c.meta
+                ]
+                if image_chunks:
+                    run_logger.log_images(image_chunks)  # cast is safe due to structure
+            except Exception as e:
+                self.logger.warning(f"RunLogger failed in step_retrieve: {e}")
+
+            # ---- LOGGING ends ----
 
             if not chunks:
                 yield "⚠️ No results retrieved."
@@ -536,13 +595,15 @@ class PipelineRunner:
                     preview = chunk.text.strip()[:80].replace("\n", " ")
                     chunk_type = chunk.meta.get("doc_type", "text")
 
-                yield f"[{i}] {chunk_type} | From: {retriever_name} | Score: {score:.3f} | doc_id: {doc_id}"
+                yield (
+                    f"[{i}] {chunk_type} | From: {retriever_name} | "
+                    f"Score: {score:.3f} | doc_id: {doc_id}"
+                )
                 yield f"     → {preview}"
 
         except Exception as e:
             self.logger.error(f"Retrieval failed: {e}", exc_info=True)
             yield f"❌ Retrieval failed: {e}"
-
 
     def step_ask(
         self,
@@ -551,7 +612,7 @@ class PipelineRunner:
         model_name: str = "gpt-4o",
         temperature: float = 0.4,
         max_tokens: int = 500,
-        **kwargs
+        **kwargs,
     ) -> Iterator[str]:
         """
         Generates an answer to the query using the previously retrieved chunks.
@@ -571,11 +632,27 @@ class PipelineRunner:
             prompt = prompt_builder.build_prompt(query, context_chunks=self.retrieved_chunks)
             yield f"📜 Prompt built. Sending to model: {model_name}..."
 
+            # Prepare RunLogger
+            run_logger = RunLogger(self.project.root_dir)  # same timestamp folder
+            run_logger.log_prompt(prompt)
+
             completer = OpenAICompleter(model_name=model_name)
             answer = completer.get_completion(
-                prompt=prompt,
-                temperature=temperature,
-                max_tokens=max_tokens
+                prompt=prompt, temperature=temperature, max_tokens=max_tokens
+            )
+            run_logger.log_response(answer)
+
+            # Also update metadata
+            run_logger.log_metadata(
+                {
+                    "query": query,
+                    "top_k": top_k,
+                    "model": model_name,
+                    "temperature": temperature,
+                    "max_tokens": max_tokens,
+                    "timestamp": datetime.now().isoformat(),
+                    "pipeline_steps": ["retrieve", "ask"] if self.retrieved_chunks else ["ask"],
+                }
             )
 
             self.last_answer = answer
@@ -601,11 +678,9 @@ class PipelineRunner:
             self.logger.error("Answer generation failed: %s", e, exc_info=True)
             yield f"❌ Failed to generate answer: {e}"
 
-
     # ----------------------------#
     #         secenarios          #
     # ----------------------------#
-
 
     def run_full_pipeline(self, query: str) -> Iterator[str]:
         """
@@ -629,7 +704,9 @@ class PipelineRunner:
 
         yield from self.run_steps()
 
-    def run_query_only(self, query: str, strategy: str = "late_fusion", top_k: int = 5, model_name: str = "gpt-4o") -> Iterator[str]:
+    def run_query_only(
+        self, query: str, strategy: str = "late_fusion", top_k: int = 5, model_name: str = "gpt-4o"
+    ) -> Iterator[str]:
         """
         Runs only the retrieval and answer generation steps using existing FAISS + metadata.
 

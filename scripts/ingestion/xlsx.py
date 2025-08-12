@@ -1,6 +1,7 @@
 import openpyxl
 from scripts.ingestion.models import AbstractIngestor, UnsupportedFileError
 
+
 class XlsxIngestor(AbstractIngestor):
     """
     Ingestor for XLSX files. Splits each sheet into row-grouped text chunks.

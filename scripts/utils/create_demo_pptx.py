@@ -4,7 +4,7 @@ slides = [
     "This is slide one.",
     "Slide two has more content.",
     "Third slide with important info.",
-    "Final slide. Thanks!"
+    "Final slide. Thanks!",
 ]
 
 prs = Presentation()

@@ -6,6 +6,7 @@ from scripts.chunking.models import Chunk
 FIXTURE_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "xlsx"
 FIXTURE_FILE = FIXTURE_DIR / "demo.xlsx"
 
+
 @pytest.mark.parametrize("file_path", [FIXTURE_FILE])
 def test_chunker_xlsx_split_on_sheets(file_path):
     from scripts.ingestion.xlsx import XlsxIngestor
@@ -25,6 +26,6 @@ def test_chunker_xlsx_split_on_sheets(file_path):
         total_tokens = sum(c.token_count for c in chunks)
         raw_tokens = len(text.split())
 
-        assert total_tokens >= int(0.9 * raw_tokens), f"Too much token loss in sheet {i+1}"
+        assert total_tokens >= int(0.9 * raw_tokens), f"Too much token loss in sheet {i + 1}"
 
-        print(f"✅ Sheet {i+1}: {len(chunks)} chunks, {total_tokens} tokens total")
+        print(f"✅ Sheet {i + 1}: {len(chunks)} chunks, {total_tokens} tokens total")

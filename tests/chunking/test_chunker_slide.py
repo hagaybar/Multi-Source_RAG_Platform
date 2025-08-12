@@ -3,6 +3,7 @@ from scripts.chunking.models import Chunk
 from scripts.chunking.rules_v3 import ChunkRule
 import scripts.chunking.rules_v3 as rules_v3
 
+
 def test_by_slide_strategy_merges_slides(monkeypatch):
     # Mock rule for pptx
     monkeypatch.setattr(
@@ -12,7 +13,7 @@ def test_by_slide_strategy_merges_slides(monkeypatch):
             min_tokens=10,
             max_tokens=50,
             overlap=5,
-        )
+        ),
     )
 
     # Simulate 4 slides of 15 tokens each = 60 tokens

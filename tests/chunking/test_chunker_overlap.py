@@ -13,14 +13,8 @@ def test_overlap_tokens_are_preserved(monkeypatch):
 
     monkeypatch.setattr(
         "scripts.chunking.chunker_v3.get_rule",
-        lambda doc_type: ChunkRule(
-            strategy="blank_line",
-            min_tokens=10,
-            max_tokens=60,
-            overlap=5
-        )
+        lambda doc_type: ChunkRule(strategy="blank_line", min_tokens=10, max_tokens=60, overlap=5),
     )
-
 
     # 6 paragraphs of 20 tokens = 120 tokens total
     para = "word " * 20
@@ -31,7 +25,6 @@ def test_overlap_tokens_are_preserved(monkeypatch):
     print(f"Got {len(chunks)} chunks")
     for i, c in enumerate(chunks):
         print(f"Chunk {i}: {c.token_count} tokens")
-
 
     assert len(chunks) >= 2
 
@@ -56,7 +49,9 @@ def test_overlap_tokens_are_preserved():
     tokens_chunk1 = chunks[0].text.split()
     tokens_chunk2 = chunks[1].text.split()
 
-    expected_overlap = tokens_chunk1[-rule.overlap:]
-    actual_overlap = tokens_chunk2[:rule.overlap]
+    expected_overlap = tokens_chunk1[-rule.overlap :]
+    actual_overlap = tokens_chunk2[: rule.overlap]
 
-    assert expected_overlap == actual_overlap, f"Expected overlap {expected_overlap}, got {actual_overlap}"
+    assert expected_overlap == actual_overlap, (
+        f"Expected overlap {expected_overlap}, got {actual_overlap}"
+    )

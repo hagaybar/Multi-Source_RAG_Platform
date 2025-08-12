@@ -2,6 +2,7 @@ from email import policy
 from email.parser import BytesParser
 from pathlib import Path
 
+
 def load_eml(path: str | Path) -> tuple[str, dict]:
     """
     Return (body_text, metadata) for one .eml file.
@@ -24,6 +25,5 @@ def load_eml(path: str | Path) -> tuple[str, dict]:
     return text, {
         "source": str(path),
         "content_type": "email",
-        "doc_type": "eml"  # Required for rule selection
+        "doc_type": "eml",  # Required for rule selection
     }
-

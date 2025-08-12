@@ -15,7 +15,8 @@ class ImageRetriever:
 
         if len(self.metadata) != self.index.ntotal:
             raise ValueError(
-                f"ImageRetriever: metadata count ({len(self.metadata)}) does not match FAISS entries ({self.index.ntotal})."
+                f"ImageRetriever: metadata count ({len(self.metadata)}) "
+                f"does not match FAISS entries ({self.index.ntotal})."
             )
 
     def _load_metadata(self, path: str) -> List[dict]:
@@ -46,11 +47,10 @@ class ImageRetriever:
                 ImageChunk(
                     id=meta["id"],
                     description=meta["description"],
-                    meta={k: v for k, v in meta.items() if k not in ("id", "description", "text")}
+                    meta={k: v for k, v in meta.items() if k not in ("id", "description", "text")},
                 )
             )
             top_chunks[-1].meta["similarity"] = float(score)
             top_chunks[-1].meta["_retriever"] = "image"
 
         return top_chunks
- 

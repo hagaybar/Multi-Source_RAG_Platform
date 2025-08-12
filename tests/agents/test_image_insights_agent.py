@@ -1,16 +1,16 @@
 from pathlib import Path
-import json, csv
+import json
+import csv
 from scripts.core.project_manager import ProjectManager
 from scripts.chunking.models import Chunk
 from scripts.agents.image_insight_agent import ImageInsightAgent
 
 # === Configure test ===
-# /home/hagaybar/projects/Multi-Source_RAG_Platform/data/projects/demo-image-ingest/input/chunks_pptx.tsv
-project_dir = Path("data/projects/demo-image-ingest")  # Change to your test project
+# /home/hagaybar/projects/Multi-Source_RAG_Platform/data/projects/demo-image-ingest/
+# input/chunks_pptx.tsv
+# Change to your test project
+project_dir = Path("data/projects/demo-image-ingest")
 tsv_path = project_dir / "input" / "chunks_pptx.tsv"
-
-# Load 1 chunk with an image_path
-import csv
 
 # Load 1 chunk with an image_path using CSV reader for TSV
 with open(tsv_path, encoding="utf-8") as f:
@@ -26,7 +26,7 @@ with open(tsv_path, encoding="utf-8") as f:
                 doc_id=row[1],
                 text=row[2],
                 token_count=int(row[3]),
-                meta=meta_json
+                meta=meta_json,
             )
             break
 

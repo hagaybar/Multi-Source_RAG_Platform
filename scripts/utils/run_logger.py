@@ -5,6 +5,7 @@ from typing import List, Optional
 from scripts.chunking.models import Chunk
 from scripts.chunking.models import ImageChunk  # if used in your retrieval fusion
 
+
 class RunLogger:
     def __init__(self, project_dir: Path, run_name: Optional[str] = None):
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -25,7 +26,7 @@ class RunLogger:
                     "chunk_id": chunk.id,
                     "doc_id": chunk.doc_id,
                     "text": chunk.text,
-                    "meta": chunk.meta
+                    "meta": chunk.meta,
                 }
                 f.write(json.dumps(record) + "\n")
 
@@ -37,7 +38,7 @@ class RunLogger:
                     "image_path": img.meta.get("image_path"),
                     "description": img.description,
                     "similarity": img.meta.get("similarity", None),
-                    "source_chunk_id": img.meta.get("source_chunk_id")
+                    "source_chunk_id": img.meta.get("source_chunk_id"),
                 }
                 f.write(json.dumps(record) + "\n")
 

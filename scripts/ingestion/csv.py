@@ -1,5 +1,6 @@
 import csv
 
+
 def load_csv(file_path: str) -> tuple[str, dict]:
     """
     Loads a CSV file, concatenates all rows into a single string,
@@ -30,6 +31,7 @@ def load_csv(file_path: str) -> tuple[str, dict]:
     metadata_dict = {'doc_type': 'csv'}
     return full_csv_text, metadata_dict
 
+
 if __name__ == '__main__':
     # Example usage:
     # Create a dummy CSV file for testing
@@ -50,6 +52,7 @@ r3c1,r3c2,r3c3
 
     # Clean up the dummy file
     import os
+
     os.remove(dummy_file_path)
 
     # Test with a non-existent file

@@ -2,19 +2,14 @@ import streamlit as st
 import os
 from pathlib import Path
 from scripts.interface.ask_interface import run_ask
+
 st.set_page_config(page_title="RAG-GP UI", layout="wide")
 
 st.title("📘 RAG-GP Streamlit Interface")
 
 # Sidebar navigation
 section = st.sidebar.radio(
-    "Navigation",
-    [
-        "Projects",
-        "Data",
-        "Pipeline Actions",
-        "Utilities / Tools"
-    ]
+    "Navigation", ["Projects", "Data", "Pipeline Actions", "Utilities / Tools"]
 )
 
 # Section: Projects
@@ -34,7 +29,9 @@ elif section == "Data":
 # Section: Pipeline Actions
 elif section == "Pipeline Actions":
     st.header("🚀 Pipeline Actions")
-    st.info("Run individual stages of the pipeline (ingest, chunk, embed, retrieve, ask).")
+    st.info(
+        "Run individual stages of the pipeline (ingest, chunk, embed, retrieve, ask)."
+    )
     st.subheader("Ask a Question")
 
     # Scan projects folder for valid projects
@@ -62,7 +59,7 @@ elif section == "Pipeline Actions":
         options=valid_projects + disabled_projects,
         index=0 if valid_projects else None,
         format_func=lambda x: f"{x} (invalid)" if x in disabled_projects else x,
-        disabled_options=disabled_projects if hasattr(st, "selectbox") else None
+        disabled_options=disabled_projects if hasattr(st, "selectbox") else None,
     )
 
     if selected_project in valid_projects:
@@ -70,8 +67,7 @@ elif section == "Pipeline Actions":
         if st.button("Ask") and question.strip():
             with st.spinner("Asking the LLM..."):
                 answer, sources = run_ask(
-                    project_path=str(base_path / selected_project),
-                    query=question
+                    project_path=str(base_path / selected_project), query=question
                 )
             st.markdown("---")
             st.markdown("### 🤖 Answer")

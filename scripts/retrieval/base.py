@@ -9,10 +9,12 @@ from scripts.chunking.models import Chunk
 from scripts.embeddings.embedder_registry import get_embedder
 # Assumes shared embedder utility
 
+
 class BaseRetriever(ABC):
     @abstractmethod
     def retrieve_vector(self, query_vector: List[float], top_k: int, filters: Dict) -> List[Chunk]:
         pass
+
 
 class FaissRetriever(BaseRetriever):
     def __init__(self, index_path: Path, metadata_path: Path):
@@ -48,30 +50,31 @@ class FaissRetriever(BaseRetriever):
                 meta = self.metadata[idx]
                 print(f"[DEBUG] Meta keys: {list(meta.keys())}")
 
-                results.append(Chunk(
-                    id=meta.get("id", f"chunk-{idx}"),
-                    doc_id=meta.get("doc_id", "unknown"),
-                    text=meta.get("text", "[no text]"),
-                    token_count=meta.get("token_count", 0),
-                    meta={**meta, "similarity": float(1.0 - score)}
-                ))
+                results.append(
+                    Chunk(
+                        id=meta.get("id", f"chunk-{idx}"),
+                        doc_id=meta.get("doc_id", "unknown"),
+                        text=meta.get("text", "[no text]"),
+                        token_count=meta.get("token_count", 0),
+                        meta={**meta, "similarity": float(1.0 - score)},
+                    )
+                )
 
             print(f"[DEBUG] Returning {len(results)} results from {self.index_path.name}")
             return results
 
         except Exception as e:
             import traceback
+
             print(f"[ERROR] retrieve_vector failed for {self.index_path.name}: {e}")
             traceback.print_exc()
             raise
-
-
 
     def _load_metadata(self) -> List[dict]:
         with open(self.metadata_path, "r", encoding="utf-8") as f:
             return [json.loads(line) for line in f if line.strip()]
 
-    # def search(self, query: str, top_k: int) -> List[Chunk]:
+        # def search(self, query: str, top_k: int) -> List[Chunk]:
         query_vec = self.embedder.encode([query])[0].astype("float32")
         scores, indices = self.index.search(np.array([query_vec]), top_k)
         results: List[Chunk] = []
@@ -87,12 +90,14 @@ class FaissRetriever(BaseRetriever):
             meta["score"] = score
 
             # Reconstruct Chunk object (text is not stored in FAISS, only metadata)
-            results.append(Chunk(
-                doc_id=meta.get("doc_id", "unknown"),
-                text=meta.get("text", ""),  # Optional: enrich with full text if needed
-                token_count=meta.get("token_count", 0),
-                meta=meta,
-                id=meta.get("id", None)
-            ))
+            results.append(
+                Chunk(
+                    doc_id=meta.get("doc_id", "unknown"),
+                    text=meta.get("text", ""),  # Optional: enrich with full text if needed
+                    token_count=meta.get("token_count", 0),
+                    meta=meta,
+                    id=meta.get("id", None),
+                )
+            )
 
         return results

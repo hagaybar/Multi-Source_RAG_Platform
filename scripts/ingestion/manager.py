@@ -1,11 +1,12 @@
 import pathlib
 import inspect  # Added import
 from typing import List
-import logging  
+import logging
 from . import LOADER_REGISTRY
 from .models import RawDoc, UnsupportedFileError
 from scripts.utils.logger import LoggerManager
 from pathlib import Path
+
 
 class IngestionManager:
     def __init__(self, log_file: Path | None = None):
@@ -46,16 +47,18 @@ class IngestionManager:
                             # segment_meta includes doc_type from PptxIngestor
                             final_meta.update(seg_meta)
                             raw_docs.append(
-                                RawDoc(content=text_segment,
-                                       metadata=final_meta)
+                                RawDoc(content=text_segment, metadata=final_meta)
                             )
-                            self.logger.debug(f"Ingested segment: {len(raw_docs)} total")
+                            self.logger.debug(
+                                f"Ingested segment: {len(raw_docs)} total"
+                            )
 
                     else:
                         # Handle function-based loaders
                         # Assuming: (content: str, metadata: dict)
                         if not callable(loader_or_class):
-                            # This case should ideally not be reached if LOADER_REGISTRY is set up correctly
+                            # This case should ideally not be reached if 
+                        # LOADER_REGISTRY is set up correctly
                             print(f"Error: Loader for {item.suffix} is not callable.")
                             continue
                         result = loader_or_class(str(item))
@@ -67,7 +70,8 @@ class IngestionManager:
                                     RawDoc(content=text_segment, metadata=final_meta)
                                 )
                                 self.logger.debug(
-                                    f"Ingested segment from {item} (function loader list): {len(raw_docs)} total"
+                                    f"Ingested segment from {item} (function loader "
+                                    f"list): {len(raw_docs)} total"
                                 )
                         else:
                             content, metadata = result
@@ -77,11 +81,15 @@ class IngestionManager:
                                 RawDoc(content=content, metadata=final_meta)
                             )
                             self.logger.debug(
-                                f"Ingested segment from {item} (function loader): {len(raw_docs)} total"
+                                f"Ingested segment from {item} (function loader): "
+                                f"{len(raw_docs)} total"
                             )
 
                 except UnsupportedFileError as e:
-                    self.logger.warning(f"Loader for {item.suffix} is not callable. Found error: {e} Skipping.")
+                    self.logger.warning(
+                        f"Loader for {item.suffix} is not callable. Found error: "
+                        f"{e} Skipping."
+                    )
                 except Exception as e:
                     # Or handle more gracefully
                     # print(f"Error loading {item}: {e}")

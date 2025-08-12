@@ -6,23 +6,35 @@ from datetime import datetime, timedelta, timezone
 
 
 # ---- CONFIGURATION ----
-OPENAI_API_KEY = os.getenv("OPENAI_ADMIN_KEY")  # Set this in your environment or replace directly
+# Set this in your environment or replace directly
+OPENAI_API_KEY = os.getenv("OPENAI_ADMIN_KEY")
 BASE_URL = "https://api.openai.com/v1/organization/costs"
 DAYS_BACK = 1  # Adjust as needed
 OUTPUT_FILE = "daily_costs_by_line_item.csv"
 
 # ---- TIME WINDOW ----
 # now = int(time.time())
-# start_time = int((datetime.now(timezone.utc) - timedelta(days=DAYS_BACK)).replace(hour=0, minute=0, second=0, microsecond=0).timestamp())
+# start_time = int(
+#     (datetime.now(timezone.utc) - timedelta(days=DAYS_BACK))
+#     .replace(hour=0, minute=0, second=0, microsecond=0)
+#     .timestamp()
+# )
 
 # Start of today (UTC)
-start_time = int(datetime.now(timezone.utc)
-                 .replace(hour=0, minute=0, second=0, microsecond=0)
-                 .timestamp())
+start_time = int(
+    datetime.now(timezone.utc)
+    .replace(hour=0, minute=0, second=0, microsecond=0)
+    .timestamp()
+)
 
 # Now (UTC)
 # end_time = int(datetime.now(timezone.utc).timestamp())
-end_time = int((datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)).timestamp())
+end_time = int(
+    (
+        datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+        + timedelta(days=1)
+    ).timestamp()
+)
 
 # ---- QUERY PARAMS ----
 params = {
@@ -30,7 +42,7 @@ params = {
     "end_time": end_time,
     "bucket_width": "1d",
     "group_by": ["line_item"],
-    "limit": DAYS_BACK
+    "limit": DAYS_BACK,
 }
 
 headers = {

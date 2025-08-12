@@ -16,7 +16,9 @@ class ImageIndexer:
     def __init__(self, project: ProjectManager):
         self.project = project
         self.output_dir = project.output_dir
-        self.logger = LoggerManager.get_logger("image_indexer", log_file=project.get_log_path("embedder"))
+        self.logger = LoggerManager.get_logger(
+            "image_indexer", log_file=project.get_log_path("embedder")
+        )
         self.embedder = get_embedder(project)
         self.dim = self.embedder.encode(["test"])[0].__len__()
 
@@ -61,13 +63,17 @@ class ImageIndexer:
             for chunk in image_chunks:
                 # Ensure deterministic image_hash (used for deduplication)
                 if "image_hash" not in chunk.meta:
-                    chunk.meta["image_hash"] = hashlib.sha256(chunk.description.strip().encode("utf-8")).hexdigest()
+                    chunk.meta["image_hash"] = hashlib.sha256(
+                        chunk.description.strip().encode("utf-8")
+                    ).hexdigest()
 
                 record = {
                     "id": chunk.id,
                     "description": chunk.description,
-                    **chunk.meta
+                    **chunk.meta,
                 }
                 f.write(json.dumps(record) + "\n")
 
-        self.logger.info(f"Wrote {len(image_chunks)} metadata records to {self.meta_path}.")
+        self.logger.info(
+            f"Wrote {len(image_chunks)} metadata records to {self.meta_path}."
+        )
