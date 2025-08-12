@@ -34,6 +34,15 @@ The `ProjectManager` class is responsible for establishing and managing the work
         *   `get_log_path(module: str, run_id: str | None = None) -> Path`: Returns the path for a log file, typically under `output/logs/`, for a specific `module` and an optional `run_id`.
         *   `get_chunks_path() -> Path`: Returns the path to the `chunks.tsv` file located in the `input` directory (i.e., `<root_dir>/input/chunks.tsv`). *(Note: This seems to point to a generic chunks file; specific per-doc_type chunk files like `chunks_<doc_type>.tsv` are also used and typically reside in `input_dir` as well).*
 
+### Static Methods
+
+In addition to its instance methods, the `ProjectManager` class also provides several static methods for project creation and configuration management:
+
+- **`create_project(...)`**: A utility to bootstrap a new project. It creates the necessary directory structure and generates a default `config.yml` file with a standard configuration.
+- **`get_config_schema()`**: Returns a dictionary representing the expected structure and data types of the `config.yml` file. This is useful for validation and for understanding the available configuration options.
+- **`validate_config(config_data)`**: Takes a dictionary of configuration data and validates it against the schema. It returns a tuple containing a boolean indicating whether the configuration is valid and a list of any validation errors.
+- **`validate_config_file(config_path)`**: A convenience method that reads a `config.yml` file from a given path, loads its content, and then uses `validate_config` to check its validity.
+
 ### Integration with Other Modules:
 
 The `ProjectManager` is a foundational class used throughout the project to provide context and access to resources. Key integrations include:

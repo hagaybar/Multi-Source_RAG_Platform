@@ -84,6 +84,17 @@ The `cli.py` script exposes the following commands:
         *   `scripts.agents.image_insight_agent.ImageInsightAgent`: For enriching chunks with image summaries.
         *   `scripts.core.project_manager.ProjectManager`: For project context.
 
+7.  **`index-images`**
+    *   **Description**: Index enriched image summaries into a dedicated FAISS index (`image_index.faiss`) and metadata file (`image_metadata.jsonl`).
+    *   **Usage**: `python -m app.cli index-images <project_path> [--doc_type <doc_type>]`
+    *   **Arguments**:
+        *   `project_path`: (Required) Path to the RAG project directory.
+    *   **Options**:
+        *   `--doc_type <doc_type>`: (Optional) The document type to read the enriched chunks from (default: "pptx").
+    *   **Modules Used**:
+        *   `scripts.embeddings.image_indexer.ImageIndexer`: For indexing the image chunks.
+        *   `scripts.core.project_manager.ProjectManager`: For project context.
+
 ## Integration with the Project
 
 The `app` folder serves as the user-facing layer of the project. It orchestrates calls to various managers and utilities within the `scripts` directory (e.g., `IngestionManager`, `UnifiedEmbedder`, `RetrievalManager`, `ProjectManager`). This separation allows for a clean distinction between the CLI definition and the underlying implementation of core functionalities.

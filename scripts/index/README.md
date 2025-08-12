@@ -1,16 +1,25 @@
-# Index Folder
+# Index Module
 
-The `scripts/index` folder is intended for scripts and modules related to creating, managing, and querying an index of document embeddings. In a Retrieval Augmented Generation (RAG) system, an index is crucial for efficiently finding the most relevant text chunks based on a user's query.
+This directory contains scripts and modules related to the management and inspection of the vector indexes used in the RAG platform. These indexes are essential for efficiently searching and retrieving relevant information.
 
-- `__init__.py`: This file is empty and marks the `index` folder as a Python package.
+## Scripts
 
-**Purpose and Integration:**
-Once text chunks have been converted into numerical embeddings (by scripts in the `scripts/embeddings/` folder), these embeddings need to be stored in a way that allows for fast similarity searches. This is typically done using a vector index or a vector database (e.g., FAISS, Pinecone, ChromaDB).
+### `inpect_faiss.py`
 
-This folder would house the logic for:
-- **Index Creation**: Scripts to build an index from a collection of embeddings.
-- **Index Storage**: Modules for saving the index to disk and loading it back.
-- **Index Updates**: Functionality to add new embeddings to an existing index or update/delete existing ones.
-- **Search/Query Interface**: Low-level functions to perform similarity searches against the index, retrieving the IDs or content of the most relevant chunks for a given query embedding.
+This is a utility script for inspecting FAISS index files (`.faiss`). It provides a simple way to get the key properties of an index without having to load it in a larger application.
 
-While currently containing only the initializer, the scripts in this folder will be responsible for the core retrieval mechanism's backend, enabling the `scripts/retrieval/` components to fetch relevant context for the RAG system.
+**Functionality:**
+
+- **`get_faiss_dimensions(faiss_path)`**: This function takes the path to a `.faiss` file and returns a tuple containing:
+    - The dimension of the vectors in the index.
+    - The total number of vectors stored in the index.
+
+**Usage:**
+
+The script can be run directly from the command line to inspect a FAISS index file:
+
+```bash
+python -m scripts.index.inpect_faiss <path_to_faiss_file>
+```
+
+This will print the dimension and vector count to the console.
