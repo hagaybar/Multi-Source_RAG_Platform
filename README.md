@@ -10,11 +10,12 @@ This project is a sophisticated, local-first Retrieval-Augmented Generation (RAG
 
 ## ✨ Key Features
 
-*   **Multi-Source Ingestion**: Supports a wide variety of file formats, including PDF, DOCX, XLSX, PPTX, CSV, EML, TXT, and images.
+*   **Multi-Source Ingestion**: Supports a wide variety of file formats, including PDF, DOCX, PPTX, CSV, and TXT. *Please note that XLSX and EML ingestion are still under development.*
 *   **Configurable Chunking**: Employs a rule-based chunking system that allows for different strategies (e.g., by paragraph, by slide) to be applied to different document types, ensuring optimal data segmentation.
 *   **Flexible Embedding Models**: Easily switch between local, open-source embedding models (via `sentence-transformers`) and powerful API-based models like OpenAI's.
 *   **Multi-Modal Retrieval**: Capable of retrieving both text and image-based information. The system can generate textual descriptions for images, making visual content fully searchable.
 *   **Advanced Retrieval Strategies**: Uses a late-fusion approach to combine results from multiple sources, ensuring comprehensive and relevant context for every query.
+*   **Streamlit UI**: An intuitive user interface for creating and managing projects, uploading documents, and editing configurations.
 *   **Command-Line Interface**: A powerful CLI for interacting with the platform, allowing you to ingest documents, generate embeddings, and ask questions directly from your terminal.
 *   **Local-First and Secure**: All your data, including raw files, indexes, and logs, is stored locally on your machine, ensuring complete privacy and control.
 
@@ -25,6 +26,7 @@ This project is a sophisticated, local-first Retrieval-Augmented Generation (RAG
 ### Prerequisites
 
 *   Python 3.10 or higher
+*   Poetry for dependency management
 *   An API key for your chosen LLM and embedding providers (e.g., `OPENAI_API_KEY`)
 
 ### Installation
@@ -35,32 +37,44 @@ This project is a sophisticated, local-first Retrieval-Augmented Generation (RAG
     cd <repository-name>
     ```
 
-2.  **Install the dependencies:**
+2.  **Install the dependencies using Poetry:**
     ```bash
-    pip install -r requirements.txt
+    poetry install
     ```
 
 ### Usage
 
-The platform is operated through its command-line interface, which is defined in `app/cli.py`. Here is a typical workflow:
+The platform can be operated through the Streamlit UI or the command-line interface.
+
+#### Streamlit UI
+
+To launch the user interface, run the following command:
+```bash
+poetry run streamlit run scripts/ui/ui_project_manager.py
+```
+The UI allows you to:
+- Create new projects.
+- Upload documents.
+- View and edit project configurations.
+
+#### Command-Line Interface
+
+The CLI provides a powerful way to interact with the platform. Here is a typical workflow:
 
 1.  **Ingest and Chunk Documents:**
     ```bash
     python -m app.cli ingest /path/to/your/project --chunk
     ```
-    This command will ingest all the documents in the specified project directory and chunk them according to the rules in `configs/chunk_rules.yaml`.
 
 2.  **Generate Embeddings:**
     ```bash
     python -m app.cli embed /path/to/your/project
     ```
-    This will generate vector embeddings for all the chunked documents and store them in a local FAISS index.
 
 3.  **Ask a Question:**
     ```bash
     python -m app.cli ask /path/to/your/project "Your question here"
     ```
-    The platform will retrieve the most relevant context from your documents and use it to generate a comprehensive answer.
 
 For more detailed information on the available commands and their options, please refer to the `app/README.md` file.
 
