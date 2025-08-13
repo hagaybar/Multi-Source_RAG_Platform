@@ -174,9 +174,11 @@ def ingest(
                             'chunk_id', 'doc_id', 'text', 'token_count', 'meta_json'
                         ]
                         writer.writerow(header)
-                        for chk_item in chunks_list:  # Renamed variable to
-                            # avoid conflict
-                            meta_json_str = json.dumps(chk_item.meta)
+                        for chk_item in chunks_list:  # Renamed variable to avoid conflict
+                            meta_json = chk_item.meta.copy()
+                            if getattr(chk_item, "parent_id", None) is not None:
+                                meta_json["parent_id"] = chk_item.parent_id
+                            meta_json_str = json.dumps(meta_json)
                             writer.writerow(
                                 [
                                     chk_item.id,
