@@ -20,6 +20,7 @@ from scripts.chunking.chunking_strategies import (
     chunk_by_blank_line,
     chunk_by_row,
     chunk_by_email_block,
+    parent_child_chunker,
 )
 
 # Default logger - will be used if no project-specific logger is provided
@@ -38,6 +39,7 @@ STRATEGY_REGISTRY = {
     "split_on_rows": chunk_by_row,
     "by_email_block": chunk_by_email_block,
     "eml": chunk_by_email_block,
+    "parent_child": parent_child_chunker,
 }
 
 
