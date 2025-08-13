@@ -20,6 +20,7 @@ _default_logger = LoggerManager.get_logger("chunking_strategies")
 
 # --- regex patterns ----------------------------------------------------------
 PARA_REGEX = re.compile(r"\n\s*\n")  # one or more blank lines
+HEADING_REGEX = re.compile(r"\n(?=#+\s)") # Split on newlines followed by '#'
 EMAIL_BLOCK_REGEX = re.compile(
     r"(\n\s*(?:From:|On .* wrote:))"
 )  # email block separator with capturing group
@@ -126,3 +127,54 @@ def chunk_by_email_block(cleaned_text: str, meta: dict, rule: ChunkRule, logger)
     doc = nlp(cleaned_text)
     items = [sent.text.strip() for sent in doc.sents if sent.text.strip()]
     return merge_chunks_with_overlap(items, meta, rule, logger)
+
+
+def parent_child_chunker(cleaned_text: str, meta: dict, rule: ChunkRule, logger) -> list[Chunk]:
+    """
+    Chunk a document into parent and child chunks based on headings.
+    Each heading and its content becomes a parent chunk, and paragraphs
+    within it become child chunks.
+    """
+    if logger is None:
+        logger = _default_logger
+
+    doc_id = meta.get('doc_id', 'unknown_doc_id')
+    all_chunks = []
+
+    # Split the document by headings to get parent chunks
+    parent_sections = HEADING_REGEX.split(cleaned_text)
+
+    for section in parent_sections:
+        if not section.strip():
+            continue
+
+        lines = section.strip().split('\n')
+        heading = lines[0].strip()
+        content = '\n'.join(lines[1:]).strip()
+
+        # Create the parent chunk
+        parent_chunk_text = f"{heading}\n{content}"
+        parent_token_count = _token_count(parent_chunk_text)
+
+        # We can use a simplified rule for parent chunks, or the same rule
+        # For now, let's assume parent chunks are not constrained by max_tokens
+        # but this could be adjusted.
+        parent_chunk = build_chunk(parent_chunk_text, meta, parent_token_count, doc_id)
+        parent_chunk.title = heading
+        all_chunks.append(parent_chunk)
+
+        # Create child chunks from the content of the parent
+        paragraphs = [p.strip() for p in PARA_REGEX.split(content) if p.strip()]
+
+        for para in paragraphs:
+            child_token_count = _token_count(para)
+            if child_token_count >= rule.min_tokens:
+                child_chunk = build_chunk(para, meta, child_token_count, doc_id)
+                child_chunk.parent_id = parent_chunk.id
+                all_chunks.append(child_chunk)
+            else:
+                logger.debug(
+                    f"Skipped child chunk with {child_token_count} tokens, less than min_tokens={rule.min_tokens}"
+                )
+
+    return all_chunks
