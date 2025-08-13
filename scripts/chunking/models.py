@@ -13,6 +13,7 @@ class Chunk:
     summary: Optional[str] = None
     embedding: Optional[List[float]] = None
     id: str = field(default_factory=lambda: uuid.uuid4().hex)
+    parent_id: Optional[str] = None
 
 
 @dataclass

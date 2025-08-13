@@ -1,5 +1,5 @@
 from scripts.chunking.chunker_v3 import split
-from scripts.chunking.chunker_v3 import merge_chunks_with_overlap
+from scripts.chunking.chunking_strategies import merge_chunks_with_overlap
 from scripts.chunking.rules_v3 import ChunkRule
 import re
 
