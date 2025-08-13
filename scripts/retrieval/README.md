@@ -1,75 +1,68 @@
-# Retrieval Layer – RAG Pipeline
+# Retrieval Module
 
-This module implements the **retrieval system** for a modular, local-first RAG platform. It is designed for flexibility, extensibility, and future integration with AI agents and UI tools.
+This module implements the retrieval system for the RAG platform. It is designed to be a flexible and extensible system that can query across multiple data types (e.g., text, images) and apply different retrieval strategies.
 
----
+## Overview
 
-## 🔍 Overview
+The retrieval system is responsible for finding the most relevant information from the indexed data based on a user's query. It uses a `RetrievalManager` to orchestrate the process, which includes embedding the query, fetching candidate chunks from various retrievers, and applying a strategy to rank and fuse the results.
 
-The retrieval system handles querying across multiple data types (PDF, DOCX, XLSX, etc.), each with its own FAISS index. It supports late-fusion ranking, score normalization, and future agent-driven dynamic strategy selection.
+## File Structure
 
----
+- **`retrieval_manager.py`**: The central orchestration layer. It manages all the retrievers (for different data types) and applies retrieval strategies to produce the final, ranked list of results.
+- **`base.py`**: Defines the `BaseRetriever` abstract class, which provides a common interface for all retrievers. It also includes the `FaissRetriever`, a concrete implementation for retrieving text chunks from a FAISS index.
+- **`image_retriever.py`**: Implements the `ImageRetriever` class, which is specialized for retrieving image chunks from a FAISS index.
+- **`strategies/`**: A directory containing different retrieval strategies.
+  - **`late_fusion.py`**: Implements a late-fusion strategy, which queries each retriever independently, combines the results, and then sorts them by similarity score.
+  - **`strategy_registry.py`**: A registry that maps strategy names to their corresponding implementation functions. This allows for easy selection and extension of retrieval strategies.
 
-## 📁 File Structure
+## Design Principles
 
-| File / Directory | Purpose | Connected To |
-|------|---------|---------------|
-| `retrieval_manager.py` | Orchestration layer. Manages retrieval strategies and result fusion. | CLI, UI, Agents, `scripts.embeddings.embedder_registry` |
-| `base.py` | BaseRetriever abstract class and FaissRetriever implementation. | RetrievalManager, `scripts.embeddings.embedder_registry` |
-| `strategies/` | Directory containing retrieval strategy implementations (e.g., `late_fusion.py`). | `strategy_registry.py` |
-| `strategies/strategy_registry.py` | Registers available retrieval strategies. | RetrievalManager, strategy files in `strategies/` |
-| `scripts/utils/chunk_utils.py` | Contains utility functions like `deduplicate_chunks`. | RetrievalManager |
-| `scripts/embeddings/embedder_registry.py` | Provides embedding models for queries. | RetrievalManager, FaissRetriever |
-| `app/cli.py` *(relevant section)* | Adds `retrieve` command to CLI, utilizing `RetrievalManager`. | RetrievalManager |
-| `agent_router.py` *(future)* | Agent-based dynamic routing (e.g. pick best strategy). | RetrievalManager, LLMs |
+- **Modular and Extensible**: The system is designed to be easily extended with new retrievers (e.g., for different data types or indexing technologies) and new retrieval strategies.
+- **Multi-Modal**: The architecture supports retrieving information from multiple modalities (e.g., text and images) and fusing the results.
+- **Strategy-Driven**: The retrieval process is driven by a selected strategy, which can be chosen based on the specific use case or even dynamically by an agent.
 
----
+## Core Components
 
-## 🧠 Design Principles
+### RetrievalManager
 
-- **Modular**: Each retrieval strategy is a pluggable function.
-- **Multi-type Aware**: Supports late fusion over FAISS indexes per doc type.
-- **Strategy-Driven**: Select strategies via code, config, or agents.
-- **Agent-Ready**: RetrievalManager is callable by an orchestration agent.
-- **Extensible**: Can add BM25, hybrid or metadata-based retrievers.
+The `RetrievalManager` is the main entry point for the retrieval system. It performs the following key functions:
+- Loads and initializes all available retrievers (e.g., `FaissRetriever` for different document types, `ImageRetriever`).
+- Embeds the user's query using the configured embedding model.
+- Optionally translates the query to English for multilingual support.
+- Invokes the selected retrieval strategy to get a list of candidate chunks.
+- Fuses text and image results, promoting text chunks that are associated with relevant images.
+- Deduplicates the final list of chunks before returning it.
 
----
+### Retrievers
 
-## 🚀 RetrievalManager
+- **`FaissRetriever`**: A retriever for text data stored in a FAISS index. It takes a query vector and returns a list of the most similar text `Chunk`s.
+- **`ImageRetriever`**: A retriever for image data. It searches a FAISS index of image embeddings and returns a list of the most relevant `ImageChunk`s.
 
-Core class that handles:
-- Loading per-type retrievers (e.g., `FaissRetriever`)
-- Selecting and applying a retrieval strategy
-- Returning final ranked `List[Chunk]`
+### Strategies
 
----
+- **`late_fusion`**: This is the default strategy. It works by:
+  1. Querying each registered retriever (e.g., for DOCX, PDF, images) independently with the same query vector.
+  2. Collecting all the returned chunks into a single list.
+  3. Sorting the combined list globally based on the similarity score.
+  4. Returning the top-K results.
 
-## 🔌 Strategies
+## Usage
 
-Retrieval strategies are defined in the `scripts/retrieval/strategies/` directory and registered in `scripts/retrieval/strategies/strategy_registry.py`.
+The `RetrievalManager` is typically used within a higher-level component, such as a CLI or a UI. To perform a retrieval, you would first instantiate the `RetrievalManager` with a `ProjectManager` object and then call the `retrieve` method:
 
-Available strategies:
-- `late_fusion` (defined in `scripts/retrieval/strategies/late_fusion.py`): Retrieve top-K from each document type, then sort all candidates globally by similarity score. Score normalization can be added as a future enhancement to this or other strategies.
-- `per_type_top_k` *(example, not currently implemented)*: Raw K-per-type (no fusion or global ranking).
-- `agentic_rerank`: Stub for LLM-based reranking (future)
+```python
+from scripts.core.project_manager import ProjectManager
+from scripts.retrieval.retrieval_manager import RetrievalManager
 
----
+# Assuming 'project' is an initialized ProjectManager object
+retrieval_manager = RetrievalManager(project)
 
-## 🧪 CLI Usage
+# Perform a retrieval using the late_fusion strategy
+results = retrieval_manager.retrieve(
+    query="What are the latest updates on the project?",
+    top_k=10,
+    strategy="late_fusion"
+)
 
-After implementation, run:
-
-```bash
-python -m app.cli retrieve \
-    --query "alma analytics letters" \
-    --project-dir data/projects/demo_project
+# The 'results' variable now contains a list of the top 10 most relevant chunks.
 ```
-
----
-
-## 🔄 Future Work
-
-- `agent_router.py`: Agentic coordination of strategies
-- UI support in Streamlit
-- Metadata filters and time-range constraints
-- BM25 and hybrid retrievers
