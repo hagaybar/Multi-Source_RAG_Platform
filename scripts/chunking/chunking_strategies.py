@@ -126,3 +126,40 @@ def chunk_by_email_block(cleaned_text: str, meta: dict, rule: ChunkRule, logger)
     doc = nlp(cleaned_text)
     items = [sent.text.strip() for sent in doc.sents if sent.text.strip()]
     return merge_chunks_with_overlap(items, meta, rule, logger)
+
+
+def logical_block_chunker(cleaned_text: str, meta: dict, rule: ChunkRule, logger) -> list[Chunk]:
+    """
+    Chunk document by logical blocks, using '---' as a separator.
+    Each block is treated as a self-contained chunk.
+    The first line of the block is assumed to be the title.
+    """
+    if logger is None:
+        logger = _default_logger
+
+    doc_id = meta.get('doc_id', 'unknown_doc_id')
+    chunks = []
+    blocks = [s.strip() for s in cleaned_text.strip().split("\n---\n") if s.strip()]
+
+    for block in blocks:
+        lines = block.split('\n')
+        title = lines[0].strip()
+        content = "\n".join(lines[1:]).strip()
+
+        if not content:
+            content = title
+            title = ""
+
+        chunk_meta = meta.copy()
+        if title:
+            chunk_meta['title'] = title
+
+        token_count = _token_count(content)
+        if token_count >= rule.min_tokens or chunk_meta.get("image_paths"):
+            chunks.append(build_chunk(content, chunk_meta, token_count, doc_id))
+        else:
+            logger.debug(
+                f"[LOGICAL_BLOCK] Skipped chunk with only {token_count} tokens and no image_paths"
+            )
+
+    return chunks
