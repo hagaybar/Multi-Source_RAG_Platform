@@ -3,34 +3,87 @@ from scripts.utils.config_loader import ConfigLoader
 from werkzeug.utils import secure_filename
 from typing import List, Tuple, Dict, Any
 
+from scripts.utils.logger import LoggerManager
+from scripts.utils.task_paths import TaskPaths
+
 
 class ProjectManager:
     """
     Represents a RAG project workspace with its own config, input, and output
     directories.
     """
-
+    
     def __init__(self, root_dir: str | Path):
         self.root_dir = Path(root_dir).resolve()
         self.config_path = self.root_dir / "config.yml"
 
-        raw_config = ConfigLoader(self.config_path)
-        self.config = raw_config.as_dict()
+        # App-level project/config logger → logs/app/project.log (JSON)
+        self._proj_log = LoggerManager.get_logger(
+            name="project",
+            task_paths=TaskPaths(),
+            run_id=None,
+            use_json=True,
+        )
 
+        # Breadcrumb: we’re bootstrapping a project
+        self._proj_log.info(
+            "project.init",
+            extra={"extra_data": {
+                "root_dir": str(self.root_dir),
+                "config_path": str(self.config_path),
+            }},
+        )
+
+        # Load config with early-fail logging
+        try:
+            raw_config = ConfigLoader(self.config_path)
+            self.config = raw_config.as_dict()
+            self._proj_log.info(
+                "config.loaded",
+                extra={"extra_data": {"path": str(self.config_path)}},
+            )
+        except FileNotFoundError:
+            # Ensure we always log missing config before raising
+            self._proj_log.error(
+                "config.missing",
+                extra={"extra_data": {"path": str(self.config_path)}},
+                exc_info=True,
+            )
+            raise
+        except Exception as e:
+            self._proj_log.error(
+                "config.load.fail",
+                extra={"extra_data": {
+                    "path": str(self.config_path),
+                    "error": str(e),
+                }},
+                exc_info=True,
+            )
+            raise
+
+        # ---- Paths (backward compatible, with new default for logs_dir) ----
         self.input_dir = self.root_dir / self.config.get("paths.input_dir", "input")
         self.output_dir = self.root_dir / self.config.get("paths.output_dir", "output")
-        self.logs_dir = self.root_dir / self.config.get(
-            "paths.logs_dir", "output/logs"
-        )
-        self.faiss_dir = self.root_dir / self.config.get(
-            "paths.faiss_dir", "output/faiss"
-        )
-        self.metadata_dir = self.root_dir / self.config.get(
-            "paths.metadata_dir", "output/metadata"
-        )
+        # Centralized logging default: "logs" (config can override)
+        self.logs_dir = self.root_dir / self.config.get("paths.logs_dir", "logs")
+        self.faiss_dir = self.root_dir / self.config.get("paths.faiss_dir", "output/faiss")
+        self.metadata_dir = self.root_dir / self.config.get("paths.metadata_dir", "output/metadata")
 
+        # Create folders if missing
         self._ensure_directories()
 
+        # Log final resolved paths once
+        self._proj_log.info(
+            "project.paths",
+            extra={"extra_data": {
+                "input_dir": str(self.input_dir),
+                "output_dir": str(self.output_dir),
+                "logs_dir": str(self.logs_dir),
+                "faiss_dir": str(self.faiss_dir),
+                "metadata_dir": str(self.metadata_dir),
+            }},
+        )
+    
     def _ensure_directories(self):
         for path in [
             self.input_dir,

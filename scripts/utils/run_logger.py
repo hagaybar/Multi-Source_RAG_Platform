@@ -10,7 +10,7 @@ class RunLogger:
     def __init__(self, project_dir: Path, run_name: Optional[str] = None):
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         run_folder = run_name or f"run_{timestamp}"
-        self.base_dir = Path(project_dir) / "output" / "runs" / run_folder
+        self.base_dir = Path(project_dir) / "logs" / "runs" / run_folder
         self.base_dir.mkdir(parents=True, exist_ok=True)
 
     def log_metadata(self, metadata: dict) -> None:

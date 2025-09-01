@@ -56,28 +56,20 @@ class OpenAICompleter:
         model_name: str | None = None,
         temperature: float = 0.7,
         max_tokens: int = 500,
-    ) -> str | None:
+    ) -> str:
         """
-        Gets a completion using LiteLLM.
+        Gets a completion using LiteLLM, with auto-detection of correct max token parameter.
 
         Args:
             prompt (str): The prompt to send to the model.
-            model_name (str, optional): The model to use. If None, uses the 
-                                        instance's default model.
-                                        For OpenAI, this would be e.g. 
-                                        "gpt-3.5-turbo", "gpt-4", etc.
+            model_name (str, optional): The model to use. If None, uses the instance's default.
             temperature (float, optional): Sampling temperature. Defaults to 0.7.
-            max_tokens (int, optional): Maximum number of tokens to generate. Defaults to 500.
+            max_tokens (int, optional): Max completion tokens. Defaults to 500.
 
         Returns:
-            str | None: The content of the completion, or None if an error occurs.
+            str: The content of the completion, or an error string if request fails.
         """
         current_model = model_name or self.model_name
-        # For LiteLLM, ensure the model name is correctly formatted 
-        # if it needs a prefix like "openai/"
-        # However, for direct OpenAI calls through LiteLLM, "gpt-3.5-turbo" is typically sufficient.
-        # If using a proxy or router, the model name might need to be "openai/gpt-3.5-turbo".
-        # For simplicity, we assume direct usage here.
 
         logger.info(
             f"Requesting completion from LiteLLM for model: {current_model} "
@@ -86,38 +78,56 @@ class OpenAICompleter:
 
         messages = [{"role": "user", "content": prompt}]
 
+        # Detect which models require restricted parameters
+        restricted_models = ("gpt-4o", "gpt-5", "o1")
+
+        # Detect which parameter name to use
+        params = {
+            "model": current_model,
+            "messages": messages,
+            "api_key": os.getenv("OPEN_AI"),
+        }
+        # Only include temperature if allowed
+        if not any(current_model.startswith(m) for m in restricted_models):
+            params["temperature"] = temperature
+
+
+        # Correct max token parameter
+        if any(current_model.startswith(m) for m in restricted_models):
+            params["max_completion_tokens"] = max_tokens
+        else:
+            params["max_tokens"] = max_tokens
+
         try:
-            response = litellm.completion(
-                model=current_model,
-                messages=messages,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                api_key=os.getenv("OPEN_AI"),
-                # api_key is not explicitly passed here if OPEN_AI is set,
-                # LiteLLM handles it. If self.api_key was set in __init__ from param,
-                # it's already in os.environ.
-            )
+            response = litellm.completion(**params)
 
             if (
-                response.choices
-                and response.choices[0].message
-                and response.choices[0].message.content
+                hasattr(response, "choices")
+                and response.choices
+                and hasattr(response.choices[0], "message")
+                and getattr(response.choices[0].message, "content", None)
             ):
                 content = response.choices[0].message.content
                 logger.info(
                     f"Completion received successfully via LiteLLM. Length: {len(content)} chars."
                 )
                 return content
-            else:
-                logger.warning("No completion content received from LiteLLM or content is empty.")
-                return None
-        except litellm.exceptions.APIError as e:  # Catch LiteLLM specific API errors
-            logger.error(f"LiteLLM API error: {e}")
-            return None
-        except Exception as e:  # Catch any other exception
-            logger.error(f"An unexpected error occurred while getting completion via LiteLLM: {e}")
-            return None
 
+            logger.warning("No completion content received from LiteLLM or content is empty.")
+            return "[ERROR] LLM returned no content"
+
+        except litellm.exceptions.APIError as e:
+            err_msg = f"[ERROR] LiteLLM API error: {e}"
+            logger.error(err_msg)
+            return err_msg
+        except litellm.BadRequestError as e:
+            err_msg = f"[ERROR] Bad request to LLM API: {e}"
+            logger.error(err_msg)
+            return err_msg
+        except Exception as e:
+            err_msg = f"[ERROR] Unexpected error from LLM: {e}"
+            logger.error(err_msg)
+            return err_msg
     def get_multimodal_completion(
         self,
         prompt: str,

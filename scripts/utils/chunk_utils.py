@@ -17,6 +17,12 @@ def deduplicate_chunks(
     new_chunks = []
     seen_hashes = set()
     print(f"[DEBUG] deduplicate_chunks received {len(chunks)} chunks")
+    
+    # Early return for empty chunks
+    if not chunks:
+        print("[DEBUG] No chunks to process, returning empty list")
+        return new_chunks
+    
     print(f"[DEBUG] First chunk type: {type(chunks[0])}")
 
     for chunk in chunks:

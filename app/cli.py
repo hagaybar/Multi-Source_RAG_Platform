@@ -28,6 +28,7 @@ from scripts.chunking.models import Chunk
 # from scripts.embeddings.chunk_embedder import ChunkEmbedder
 from scripts.embeddings.unified_embedder import UnifiedEmbedder
 from scripts.utils.logger import LoggerManager
+from scripts.utils.task_paths import TaskPaths
 from scripts.core.project_manager import ProjectManager
 from scripts.retrieval.retrieval_manager import RetrievalManager
 from scripts.prompting.prompt_builder import PromptBuilder  # Added for ask command
@@ -41,7 +42,14 @@ from scripts.agents.image_insight_agent import (
 app = typer.Typer()
 
 # Setup basic logging for the CLI
-cli_logger = LoggerManager.get_logger("cli_app")
+paths = TaskPaths()
+
+cli_logger = LoggerManager.get_logger(
+    name="cli",             # or "ui", "retrieval", "pipeline", etc.
+    task_paths=paths,
+    run_id=None,            # leave None for long-lived processes
+    use_json=True           # JSON for file logs, color for console
+)
 
 
 @app.command()
