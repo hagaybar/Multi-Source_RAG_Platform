@@ -9,21 +9,24 @@ from pathlib import Path
 
 
 class IngestionManager:
-    def __init__(self, log_file: Path | None = None):
+    def __init__(self, log_file: Path | None = None, run_id: str | None = None):
         """
         Initializes the IngestionManager.
         This manager is responsible for ingesting documents from a specified path.
         It uses a registry of loaders to handle different file types.
         """
-        print(f"IngestionManager received log_file: {log_file}")  # Add this
-        self.logger = LoggerManager.get_logger("ingestion", log_file=str(log_file))
-        print(f"Logger created, checking handlers...")  # Add this
+        self.run_id = run_id
+        self.logger = LoggerManager.get_logger("ingestion", log_file=str(log_file), run_id=run_id)
+        
+        # Debug logging for handler information
+        self.logger.debug(f"IngestionManager received log_file: {log_file}", extra={"run_id": run_id} if run_id else {})
+        self.logger.debug("Logger created, checking handlers...", extra={"run_id": run_id} if run_id else {})
         for handler in self.logger.handlers:
             if isinstance(handler, logging.FileHandler):
-                print(f"FileHandler baseFilename: {handler.baseFilename}")  # Add this
+                self.logger.debug(f"FileHandler baseFilename: {handler.baseFilename}", extra={"run_id": run_id, "handler_type": "FileHandler", "filename": handler.baseFilename} if run_id else {"handler_type": "FileHandler", "filename": handler.baseFilename})
 
     def ingest_path(self, path: str | pathlib.Path) -> List[RawDoc]:
-        self.logger.info(f"Starting ingestion from: {path.resolve()}")
+        self.logger.info(f"Starting ingestion from: {path.resolve()}", extra={"run_id": self.run_id, "ingestion_path": str(path.resolve())} if self.run_id else {"ingestion_path": str(path.resolve())})
         if not isinstance(path, pathlib.Path):
             path = pathlib.Path(path)
 
@@ -50,7 +53,8 @@ class IngestionManager:
                                 RawDoc(content=text_segment, metadata=final_meta)
                             )
                             self.logger.debug(
-                                f"Ingested segment: {len(raw_docs)} total"
+                                f"Ingested segment: {len(raw_docs)} total",
+                                extra={"run_id": self.run_id, "total_segments": len(raw_docs), "file_path": str(item)} if self.run_id else {"total_segments": len(raw_docs), "file_path": str(item)}
                             )
 
                     else:
@@ -59,7 +63,7 @@ class IngestionManager:
                         if not callable(loader_or_class):
                             # This case should ideally not be reached if 
                         # LOADER_REGISTRY is set up correctly
-                            print(f"Error: Loader for {item.suffix} is not callable.")
+                            self.logger.error(f"Loader for {item.suffix} is not callable", extra={"run_id": self.run_id, "file_suffix": item.suffix, "file_path": str(item)} if self.run_id else {"file_suffix": item.suffix, "file_path": str(item)})
                             continue
                         result = loader_or_class(str(item))
                         if isinstance(result, list):
@@ -71,7 +75,8 @@ class IngestionManager:
                                 )
                                 self.logger.debug(
                                     f"Ingested segment from {item} (function loader "
-                                    f"list): {len(raw_docs)} total"
+                                    f"list): {len(raw_docs)} total",
+                                    extra={"run_id": self.run_id, "total_segments": len(raw_docs), "file_path": str(item), "loader_type": "function_list"} if self.run_id else {"total_segments": len(raw_docs), "file_path": str(item), "loader_type": "function_list"}
                                 )
                         else:
                             content, metadata = result
@@ -82,16 +87,18 @@ class IngestionManager:
                             )
                             self.logger.debug(
                                 f"Ingested segment from {item} (function loader): "
-                                f"{len(raw_docs)} total"
+                                f"{len(raw_docs)} total",
+                                extra={"run_id": self.run_id, "total_segments": len(raw_docs), "file_path": str(item), "loader_type": "function"} if self.run_id else {"total_segments": len(raw_docs), "file_path": str(item), "loader_type": "function"}
                             )
 
                 except UnsupportedFileError as e:
                     self.logger.warning(
                         f"Loader for {item.suffix} is not callable. Found error: "
-                        f"{e} Skipping."
+                        f"{e} Skipping.",
+                        extra={"run_id": self.run_id, "file_suffix": item.suffix, "file_path": str(item)} if self.run_id else {"file_suffix": item.suffix, "file_path": str(item)},
+                        exc_info=True
                     )
                 except Exception as e:
                     # Or handle more gracefully
-                    # print(f"Error loading {item}: {e}")
-                    self.logger.warning(f"Error loading {item}: {e}")
+                    self.logger.error(f"Error loading {item}: {e}", extra={"run_id": self.run_id, "file_path": str(item)} if self.run_id else {"file_path": str(item)}, exc_info=True)
         return raw_docs

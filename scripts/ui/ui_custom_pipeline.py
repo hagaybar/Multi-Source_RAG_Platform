@@ -5,11 +5,16 @@ from pathlib import Path
 from scripts.core.project_manager import ProjectManager
 from scripts.ui.validation_helpers import validate_steps
 from scripts.pipeline.runner import PipelineRunner
+from scripts.utils.logger import LoggerManager
+from scripts.utils.run_logger import RunLogger
 
 
 def render_custom_pipeline_tab():
     st.header("🧪 Custom Pipeline Runner")
     st.info("Run selected steps of the RAG pipeline with safety checks.")
+    
+    # Initialize UI logger for pipeline actions
+    ui_logger = LoggerManager.get_logger("ui")
 
     # Step 1: Project selector
     base_path = Path("data/projects")
@@ -26,6 +31,14 @@ def render_custom_pipeline_tab():
     selected_name = st.selectbox("Select a project", project_names)
     project_path = base_path / selected_name
     project = ProjectManager(project_path)
+    
+    # Log project selection for pipeline
+    ui_logger.debug("Project selected for pipeline", extra={
+        "action": "pipeline_project_select",
+        "project_name": selected_name,
+        "project_path": str(project_path),
+        "ui_component": "pipeline_runner"
+    })
 
     st.write("Loaded project at:", project.root_dir)
 
@@ -82,8 +95,22 @@ def render_custom_pipeline_tab():
         for msg in messages:
             st.warning(msg)
 
+        # Generate run_id for pipeline execution
+        run_logger_instance = RunLogger(project_path)
+        run_id = run_logger_instance.base_dir.name
+        
+        # Log pipeline execution start
+        ui_logger.info("Pipeline execution started", extra={
+            "action": "pipeline_start",
+            "run_id": run_id,
+            "project_name": selected_name,
+            "selected_steps": selected_steps,
+            "step_count": len(selected_steps),
+            "ui_component": "pipeline_runner"
+        })
+        
         # 2️⃣ Instantiate the runner
-        runner = PipelineRunner(project, project.config)
+        runner = PipelineRunner(project, project.config, run_id=run_id)
 
         # 3️⃣ Register each step
         for step in selected_steps:
@@ -100,10 +127,32 @@ def render_custom_pipeline_tab():
         log_lines = []
 
         with st.spinner("Running pipeline…"):
-            for line in runner.run_steps():
-                log_lines.append(line)
-                log_area.text("\n".join(log_lines))
-
-        st.success("🎉 Pipeline complete!")
+            try:
+                for line in runner.run_steps():
+                    log_lines.append(line)
+                    log_area.text("\n".join(log_lines))
+                
+                # Log successful pipeline completion
+                ui_logger.info("Pipeline execution completed successfully", extra={
+                    "action": "pipeline_complete",
+                    "run_id": run_id,
+                    "project_name": selected_name,
+                    "completed_steps": selected_steps,
+                    "ui_component": "pipeline_runner"
+                })
+                st.success("🎉 Pipeline complete!")
+                
+            except Exception as e:
+                # Log pipeline execution error
+                ui_logger.error("Pipeline execution failed", extra={
+                    "action": "pipeline_error",
+                    "run_id": run_id,
+                    "project_name": selected_name,
+                    "failed_steps": selected_steps,
+                    "error_message": str(e),
+                    "ui_component": "pipeline_runner"
+                }, exc_info=True)
+                st.error(f"❌ Pipeline failed: {str(e)}")
+                raise
     if run_disabled:
         st.info("Select at least one pipeline step to enable execution.")

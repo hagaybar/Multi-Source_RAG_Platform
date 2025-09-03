@@ -38,6 +38,7 @@ from scripts.api_clients.openai.completer import (
 from scripts.agents.image_insight_agent import (
     ImageInsightAgent,  # Added for index_images command
 )
+from scripts.utils.run_logger import RunLogger
 
 app = typer.Typer()
 
@@ -64,61 +65,62 @@ def ingest(
     """
     Ingests documents from the specified folder and optionally chunks them.
     """
-
+    # Generate run_id for this command
+    run_logger = RunLogger(folder_path)
+    run_id = run_logger.base_dir.name
+    
     project = ProjectManager(folder_path)
     ingestion_manager = IngestionManager(
-        log_file=str(project.get_log_path("ingestion"))
+        log_file=str(project.get_log_path("ingestion")),
+        run_id=run_id
     )
     chunker_logger = LoggerManager.get_logger(
-        "chunker_project", log_file=str(project.get_log_path("chunker"))
+        "chunker_project", log_file=str(project.get_log_path("chunker")), run_id=run_id
     )
 
-    chunker_logger.info(f"Starting ingestion from folder: {folder_path}")
+    chunker_logger.info(f"Starting ingestion from folder: {folder_path}", extra={"run_id": run_id, "command": "ingest", "folder_path": str(folder_path)})
     if not folder_path.is_dir():
         chunker_logger.error(f"Error: {folder_path} is not a valid directory.")
         raise typer.Exit(code=1)
 
-        # Add these debug lines:
-    chunker_logger.info(f"Chunker log path: {project.get_log_path('chunker')}")
-    chunker_logger.info(
-        f"Chunker log path as string: {str(project.get_log_path('chunker'))}"
+        # Debug logging for chunker setup
+    chunker_logger.debug(f"Chunker log path: {project.get_log_path('chunker')}", extra={"run_id": run_id})
+    chunker_logger.debug(
+        f"Chunker log path as string: {str(project.get_log_path('chunker'))}", extra={"run_id": run_id}
     )
-    chunker_logger.info("Checking chunker logger handlers...")
+    chunker_logger.debug("Checking chunker logger handlers...", extra={"run_id": run_id})
     for handler in chunker_logger.handlers:
         if hasattr(handler, 'baseFilename'):
-            chunker_logger.info(
-                f"Chunker FileHandler baseFilename: {handler.baseFilename}"
+            chunker_logger.debug(
+                f"Chunker FileHandler baseFilename: {handler.baseFilename}", extra={"run_id": run_id, "handler_type": "FileHandler"}
             )
     raw_docs = ingestion_manager.ingest_path(folder_path)
 
     # Changed "documents" to "text segments"
-    chunker_logger.info(f"Ingested {len(raw_docs)} text segments from {folder_path}")
+    chunker_logger.info(f"Ingested {len(raw_docs)} text segments from {folder_path}", extra={"run_id": run_id, "segment_count": len(raw_docs), "folder_path": str(folder_path)})
 
     if chunk:
-        chunker_logger.info("Chunking is enabled. Proceeding with chunking...")
+        chunker_logger.info("Chunking is enabled. Proceeding with chunking...", extra={"run_id": run_id})
         if not raw_docs:
-            chunker_logger.info("No documents were ingested, skipping chunking.")
+            chunker_logger.info("No documents were ingested, skipping chunking.", extra={"run_id": run_id})
             raise typer.Exit()
 
-        chunker_logger.info("Chunking ingested documents...")
+        chunker_logger.info("Chunking ingested documents...", extra={"run_id": run_id})
         all_chunks: list[Chunk] = []
 
         for raw_doc in raw_docs:
-            chunker_logger.info(
-                f"Processing document: {raw_doc.metadata.get('source_filepath')}"
-            )  # Add this line
             # Ensure doc_id is properly assigned for chunking
             # RawDoc.metadata should contain 'source_filepath'
             doc_id = raw_doc.metadata.get('source_filepath', 'unknown_document')
-            chunker_logger.info(
-                f"Processing document: {raw_doc.metadata.get('source_filepath')}"
-            )  # Add this line
+            chunker_logger.debug(
+                f"Processing document: {raw_doc.metadata.get('source_filepath')}",
+                extra={"run_id": run_id, "source_filepath": raw_doc.metadata.get('source_filepath')}
+            )
             if not raw_doc.metadata.get('doc_type'):
-                warning_msg = (
-                    f"Warning: doc_type missing in metadata for {doc_id}, "
-                    f"content: {raw_doc.content[:100]}..."
+                chunker_logger.warning(
+                    f"doc_type missing in metadata for {doc_id}",
+                    extra={"run_id": run_id, "doc_id": doc_id, "content_preview": raw_doc.content[:100]}
                 )
-                chunker_logger.info(warning_msg)
                 # Potentially skip or assign default doc_type
                 # BaseChunker will raise error if doc_type is missing.
 
@@ -143,9 +145,10 @@ def ingest(
                     logger=chunker_logger,
                     # clean_options will use default from chunker_v3.split
                 )
-                print(
-                    f"[CHUNK] {raw_doc.metadata.get('source_filepath')} => "
-                    f"{raw_doc.metadata.get('doc_type')}"
+                chunker_logger.debug(
+                    f"Chunked document: {raw_doc.metadata.get('source_filepath')} => "
+                    f"{raw_doc.metadata.get('doc_type')}",
+                    extra={"run_id": run_id, "source_filepath": raw_doc.metadata.get('source_filepath'), "doc_type": raw_doc.metadata.get('doc_type')}
                 )
                 all_chunks.extend(document_chunks)
 
@@ -153,15 +156,15 @@ def ingest(
                 error_msg = (
                     f"Skipping chunking for a segment from {doc_id} due to error: {e}"
                 )
-                print(error_msg)
+                chunker_logger.error(error_msg, extra={"run_id": run_id, "doc_id": doc_id}, exc_info=True)
             except Exception as e:
                 error_msg = (
                     f"An unexpected error occurred while chunking a segment "
                     f"from {doc_id}: {e}"
                 )
-                print(error_msg)
+                chunker_logger.error(error_msg, extra={"run_id": run_id, "doc_id": doc_id}, exc_info=True)
 
-        print(f"Generated {len(all_chunks)} chunks.")
+        chunker_logger.info(f"Generated {len(all_chunks)} chunks.", extra={"run_id": run_id, "total_chunks": len(all_chunks)})
 
         if all_chunks:
             # Group chunks by doc_type
@@ -194,13 +197,13 @@ def ingest(
                                     meta_json_str,
                                 ]
                             )
-                    print(f"Wrote {len(chunks_list)} chunks to {output_path.name}")
+                    chunker_logger.info(f"Wrote {len(chunks_list)} chunks to {output_path.name}", extra={"run_id": run_id, "doc_type": doc_type, "chunk_count": len(chunks_list), "output_file": output_path.name})
                 except IOError as e:
                     error_msg = f"Error writing chunks for {doc_type}: {e}"
                     chunker_logger.error(error_msg)  # Use error level
                     raise typer.Exit(code=1)
         else:
-            print("No chunks were generated.")
+            chunker_logger.info("No chunks were generated.", extra={"run_id": run_id})
 
 
 @app.command()
@@ -219,14 +222,18 @@ def embed(
     Generate embeddings for chunks in the specified project directory.
     Optionally run image enrichment + indexing after embedding.
     """
-    cli_logger.info("\n" + "=" * 120)
-    cli_logger.info("DEBUG: CLI embed() command STARTING")
-    cli_logger.info("=" * 120)
+    # Generate run_id for this command
+    run_logger = RunLogger(project_dir)
+    run_id = run_logger.base_dir.name
+    
+    cli_logger.debug("CLI embed() command starting", extra={"run_id": run_id, "command": "embed"})
 
-    cli_logger.info(f"DEBUG: CLI Arguments received:")
-    cli_logger.info(f"  - project_dir: {project_dir}")
-    cli_logger.info(f"  - use_async: {use_async}")
-    cli_logger.info(f"  - with_image_index: {with_image_index}")
+    cli_logger.debug("CLI embed arguments received", extra={
+        "run_id": run_id,
+        "project_dir": str(project_dir),
+        "use_async": use_async,
+        "with_image_index": with_image_index
+    })
 
     if not project_dir.exists():
         typer.echo(f"❌ Project directory does not exist: {project_dir}")
@@ -241,11 +248,11 @@ def embed(
     embedder = UnifiedEmbedder(project, runtime_config=runtime_config)
     embedder.run_from_folder()
 
-    cli_logger.info("✅ Embedding complete.")
+    cli_logger.info("✅ Embedding complete.", extra={"run_id": run_id})
 
     # Optional post-processing: image enrichment and indexing
     if with_image_index:
-        cli_logger.info("🧠 Starting image enrichment + indexing...")
+        cli_logger.info("🧠 Starting image enrichment + indexing...", extra={"run_id": run_id})
 
         import subprocess
 
@@ -259,17 +266,15 @@ def embed(
                 f"python cli.py index-images {project_dir} --doc-type {doc_type}"
             )
 
-            cli_logger.info(f"Running: {enrich_cmd}")
+            cli_logger.debug(f"Running enrichment command", extra={"run_id": run_id, "doc_type": doc_type, "command": enrich_cmd})
             subprocess.call(enrich_cmd, shell=True)
 
-            cli_logger.info(f"Running: {index_cmd}")
+            cli_logger.debug(f"Running index command", extra={"run_id": run_id, "doc_type": doc_type, "command": index_cmd})
             subprocess.call(index_cmd, shell=True)
 
-        cli_logger.info("✅ Image indexing complete.")
+        cli_logger.info("✅ Image indexing complete.", extra={"run_id": run_id})
 
-    cli_logger.info("=" * 120)
-    cli_logger.info("DEBUG: CLI embed() command COMPLETE")
-    cli_logger.info("=" * 120)
+    cli_logger.debug("CLI embed() command complete", extra={"run_id": run_id})
 
 
 @app.command()
@@ -282,9 +287,20 @@ def retrieve(
     """
     Retrieve top-k chunks from multiple document types using the configured strategy.
     """
-    cli_logger.info(f"Starting retrieval for project: {project_path}, query: '{query}'")
+    # Generate run_id for this command
+    run_logger = RunLogger(Path(project_path))
+    run_id = run_logger.base_dir.name
+    
+    cli_logger.info(f"Starting retrieval for project: {project_path}, query: '[QUERY_REDACTED]'", extra={
+        "run_id": run_id,
+        "command": "retrieve",
+        "project_path": project_path,
+        "top_k": top_k,
+        "strategy": strategy,
+        "query_length": len(query)
+    })
     project = ProjectManager(project_path)
-    rm = RetrievalManager(project)
+    rm = RetrievalManager(project, run_id=run_id)
 
     results = rm.retrieve(query=query, top_k=top_k, strategy=strategy)
 
@@ -303,7 +319,7 @@ def retrieve(
         if page_number:
             print(f"    Page: {page_number}")
         print(f"    Text: {chunk_item.text.strip()[:500]}...")
-    cli_logger.info(f"Retrieved {len(results)} chunks.")
+    cli_logger.info(f"Retrieved {len(results)} chunks.", extra={"run_id": run_id, "result_count": len(results)})
 
 
 @app.command()
@@ -329,30 +345,44 @@ def ask(
 
     Requires the OPENAI_API_KEY environment variable to be set for LLM access.
     """
-    cli_logger.info(f"Starting 'ask' command for project: {project_path}")
-    cli_logger.info(f"Query: '{query}', top_k: {top_k}, model: {model_name}")
+    # Generate run_id for this command
+    run_logger = RunLogger(Path(project_path))
+    run_id = run_logger.base_dir.name
+    
+    cli_logger.info(f"Starting 'ask' command for project: {project_path}", extra={
+        "run_id": run_id,
+        "command": "ask",
+        "project_path": project_path,
+        "query_length": len(query),
+        "top_k": top_k,
+        "model": model_name,
+        "temperature": temperature,
+        "max_tokens": max_tokens
+    })
 
     try:
         project = ProjectManager(project_path)
-        cli_logger.info(f"ProjectManager initialized for {project.root_dir}")
+        cli_logger.debug(f"ProjectManager initialized for {project.root_dir}", extra={"run_id": run_id, "project_root": str(project.root_dir)})
 
         # 1. Retrieve context
-        retrieval_manager = RetrievalManager(project)
-        cli_logger.info(
-            f"RetrievalManager initialized. Retrieving top {top_k} chunks for query..."
+        retrieval_manager = RetrievalManager(project, run_id=run_id)
+        cli_logger.debug(
+            f"RetrievalManager initialized. Retrieving top {top_k} chunks for query...",
+            extra={"run_id": run_id, "top_k": top_k}
         )
         retrieved_chunks = retrieval_manager.retrieve(query=query, top_k=top_k)
 
         if not retrieved_chunks:
             cli_logger.warning(
                 "No context chunks retrieved. Answering based on query alone might "
-                "be difficult or impossible."
+                "be difficult or impossible.",
+                extra={"run_id": run_id}
             )
             print("\nWarning: No relevant context documents were found for your query.")
             # Decide if to proceed or exit. For now, proceed, LMM will be told
             # context is empty.
         else:
-            cli_logger.info(f"Retrieved {len(retrieved_chunks)} chunks.")
+            cli_logger.info(f"Retrieved {len(retrieved_chunks)} chunks.", extra={"run_id": run_id, "chunk_count": len(retrieved_chunks)})
             print(f"\n--- Retrieved {len(retrieved_chunks)} context chunks ---")
             for i, chunk_item in enumerate(retrieved_chunks, 1):
                 source_id = chunk_item.meta.get('source_filepath', chunk_item.doc_id)
@@ -370,11 +400,11 @@ def ask(
 
         # 2. Build prompt
         prompt_builder = PromptBuilder()  # Uses default template
-        cli_logger.info("PromptBuilder initialized.")
+        cli_logger.debug("PromptBuilder initialized.", extra={"run_id": run_id})
         prompt_str = prompt_builder.build_prompt(
             query=query, context_chunks=retrieved_chunks
         )
-        cli_logger.info(f"Prompt built. Length: {len(prompt_str)} chars.")
+        cli_logger.debug(f"Prompt built. Length: {len(prompt_str)} chars.", extra={"run_id": run_id, "prompt_length": len(prompt_str)})
         # cli_logger.debug(f"Generated Prompt:\n{prompt_str}") # Potentially very long
 
         # 3. Get LMM completion
@@ -382,9 +412,9 @@ def ask(
         # (expects OPENAI_API_KEY env var)
         try:
             completer = OpenAICompleter(model_name=model_name)
-            cli_logger.info(f"OpenAICompleter initialized for model {model_name}.")
+            cli_logger.debug(f"OpenAICompleter initialized for model {model_name}.", extra={"run_id": run_id, "model": model_name})
         except ValueError as e:
-            cli_logger.error(f"Failed to initialize OpenAICompleter: {e}")
+            cli_logger.error(f"Failed to initialize OpenAICompleter: {e}", extra={"run_id": run_id}, exc_info=True)
             print(
                 f"\nError: Could not initialize the LLM completer. "
                 f"Ensure OPENAI_API_KEY is set. Details: {e}"
@@ -400,17 +430,17 @@ def ask(
             max_tokens=max_tokens,
             # model_name is passed to constructor, but can be overridden here if needed
         )
-        cli_logger.info("LLM completion attempt finished.")
+        cli_logger.debug("LLM completion attempt finished.", extra={"run_id": run_id})
 
         # 4. Print answer and sources
         if llm_answer:
             print("\n--- Answer ---")
             print(llm_answer)
-            cli_logger.info(f"LLM Answer received. Length: {len(llm_answer)}")
+            cli_logger.info(f"LLM Answer received. Length: {len(llm_answer)}", extra={"run_id": run_id, "answer_length": len(llm_answer)})
         else:
             print("\n--- Answer ---")
             print("The LLM did not provide an answer or an error occurred.")
-            cli_logger.warning("LLM did not return an answer.")
+            cli_logger.warning("LLM did not return an answer.", extra={"run_id": run_id})
 
         if retrieved_chunks:
             print("\n--- Sources Used for Context ---")
@@ -436,7 +466,7 @@ def ask(
             )
 
     except Exception as e:
-        cli_logger.error(f"An error occurred in the 'ask' command: {e}", exc_info=True)
+        cli_logger.error(f"An error occurred in the 'ask' command: {e}", extra={"run_id": run_id}, exc_info=True)
         print(f"\nAn unexpected error occurred: {e}")
         raise typer.Exit(code=1)
 
@@ -444,28 +474,36 @@ def ask(
 @app.command()
 def config(project_dir: Path) -> None:
     """Print config values from project directory."""
-
-    cli_logger.info(f"Reading config from: {project_dir}")
+    # Generate run_id for this command
+    run_logger = RunLogger(project_dir)
+    run_id = run_logger.base_dir.name
+    
+    cli_logger.info(f"Reading config from: {project_dir}", extra={"run_id": run_id, "command": "config", "project_dir": str(project_dir)})
 
     # Create ProjectManager
     project = ProjectManager(project_dir)
 
-    # Print basic info
-    cli_logger.info(f"Config type: {type(project.config)}")
-    cli_logger.info(f"Config value: {project.config}")
+    # Print basic info without exposing config values
+    cli_logger.debug(f"Config type: {type(project.config)}", extra={"run_id": run_id, "config_type": str(type(project.config))})
     print(f"Config type: {type(project.config)}")
-    print(f"Config value: {project.config}")
+    print("Config values: [REDACTED FOR PRIVACY]")
 
-    # If it's a dict, show the embedding section
+    # If it's a dict, show only structure info, not values
     if isinstance(project.config, dict):
-        embedding_config = project.config.get('embedding', {})  # Renamed variable
-        cli_logger.info(f"Embedding section: {embedding_config}")
-        print(f"Embedding section: {embedding_config}")
-
+        config_keys = list(project.config.keys())
+        cli_logger.debug(f"Config sections available: {config_keys}", extra={"run_id": run_id, "config_sections": config_keys})
+        print(f"Config sections available: {config_keys}")
+        
+        embedding_config = project.config.get('embedding', {})
         if isinstance(embedding_config, dict):
+            embedding_keys = list(embedding_config.keys())
+            cli_logger.debug(f"Embedding config keys: {embedding_keys}", extra={"run_id": run_id, "embedding_keys": embedding_keys})
+            print(f"Embedding config keys: {embedding_keys}")
+            
             use_async_batch = embedding_config.get('use_async_batch', 'NOT_FOUND')
-            cli_logger.info(
-                f"use_async_batch: {use_async_batch} (type: {type(use_async_batch)})"
+            cli_logger.debug(
+                f"use_async_batch: {use_async_batch} (type: {type(use_async_batch)})",
+                extra={"run_id": run_id, "use_async_batch": use_async_batch, "use_async_batch_type": str(type(use_async_batch))}
             )
             print(f"use_async_batch: {use_async_batch} (type: {type(use_async_batch)})")
 
@@ -483,7 +521,12 @@ def enrich_images(
     """
     Enrich chunks with image summaries using the ImageInsightAgent.
     """
-
+    # Generate run_id for this command
+    run_logger = RunLogger(project_path)
+    run_id = run_logger.base_dir.name
+    
+    cli_logger.info("Starting image enrichment", extra={"run_id": run_id, "command": "enrich_images", "doc_type": doc_type, "overwrite": overwrite})
+    
     project = ProjectManager(project_path)
     agent = ImageInsightAgent(project)
 
@@ -532,6 +575,7 @@ def enrich_images(
                 ]
             )
 
+    cli_logger.info(f"✅ Enriched {len(enriched_chunks)} chunks. Output written to: {output_tsv}", extra={"run_id": run_id, "enriched_count": len(enriched_chunks), "output_file": str(output_tsv)})
     print(f"✅ Enriched {len(enriched_chunks)} chunks. Output written to: {output_tsv}")
 
 
@@ -546,6 +590,11 @@ def index_images(
     Index enriched image summaries (ImageChunks) into image_index.faiss and
     image_metadata.jsonl.
     """
+    # Generate run_id for this command
+    run_logger = RunLogger(project_path)
+    run_id = run_logger.base_dir.name
+    
+    cli_logger.info("Starting image indexing", extra={"run_id": run_id, "command": "index_images", "doc_type": doc_type})
     import csv
     import json
     from scripts.chunking.models import ImageChunk
@@ -586,6 +635,7 @@ def index_images(
                 )
 
     indexer.run(image_chunks)
+    cli_logger.info(f"✅ Indexed {len(image_chunks)} image chunks", extra={"run_id": run_id, "indexed_count": len(image_chunks)})
     typer.echo(
         f"✅ Indexed {len(image_chunks)} image chunks into FAISS and metadata JSONL."
     )

@@ -1,9 +1,10 @@
 import logging
-from typing import List
+from typing import List, Optional
 
 from scripts.chunking.models import Chunk  # Assuming Chunk model is here
+from scripts.utils.logger import LoggerManager
 
-logger = logging.getLogger(__name__)
+logger = LoggerManager.get_logger("prompt")
 
 DEFAULT_PROMPT_TEMPLATE = """
 You are an expert assistant helping library systems librarians troubleshoot,
@@ -79,7 +80,7 @@ class PromptBuilder:
     context chunks.
     """
 
-    def __init__(self, template: str | None = None):
+    def __init__(self, template: str | None = None, run_id: Optional[str] = None):
         """
         Initializes the PromptBuilder.
 
@@ -88,18 +89,21 @@ class PromptBuilder:
                 If None, DEFAULT_PROMPT_TEMPLATE is used.
                 Must contain {context_str} and {query_str} placeholders.
         """
+        self.run_id = run_id
+        self.logger = LoggerManager.get_logger("prompt", run_id=run_id)
         self.template = template or DEFAULT_PROMPT_TEMPLATE_V2
         if ("{context_str}" not in self.template or
                 "{query_str}" not in self.template):
-            logger.error(
+            self.logger.error(
                 "Prompt template must include {context_str} and "
-                "{query_str} placeholders."
+                "{query_str} placeholders.",
+                extra={"run_id": run_id} if run_id else {}
             )
             raise ValueError(
                 "Prompt template must include {context_str} and "
                 "{query_str} placeholders."
             )
-        logger.info("PromptBuilder initialized.")
+        self.logger.debug("PromptBuilder initialized.", extra={"run_id": run_id} if run_id else {})
 
     def build_prompt(self, query: str, context_chunks: List[Chunk]) -> str:
         """
@@ -114,7 +118,7 @@ class PromptBuilder:
             str: The fully formatted prompt string.
         """
         if not context_chunks:
-            logger.warning("Building prompt with no context chunks.")
+            self.logger.warning("Building prompt with no context chunks.", extra={"run_id": self.run_id} if self.run_id else {})
             context_str = "No context provided."
         else:
             context_items = []
@@ -132,9 +136,10 @@ class PromptBuilder:
                     getattr(chunk, "description", None)
                 )
                 if not text:
-                    logger.warning(
+                    self.logger.warning(
                         f"Skipping chunk with no usable content: "
-                        f"{getattr(chunk, 'id', 'N/A')}"
+                        f"{getattr(chunk, 'id', 'N/A')}",
+                        extra={"run_id": self.run_id, "chunk_id": getattr(chunk, 'id', 'N/A')} if self.run_id else {"chunk_id": getattr(chunk, 'id', 'N/A')}
                     )
                     continue
 
@@ -148,9 +153,9 @@ class PromptBuilder:
                 context_items.append(context_item)
             context_str = "\n\n---\n\n".join(context_items)
 
-        logger.info(
-            f"Building prompt for query: '{query}' with "
-            f"{len(context_chunks)} context chunks."
+        self.logger.debug(
+            f"Building prompt with {len(context_chunks)} context chunks",
+            extra={"run_id": self.run_id, "query_length": len(query), "context_chunk_count": len(context_chunks)} if self.run_id else {"query_length": len(query), "context_chunk_count": len(context_chunks)}
         )
 
         # Replace placeholders in the template
@@ -159,9 +164,11 @@ class PromptBuilder:
                 context_str=context_str, query_str=query
             )
         except KeyError as e:
-            logger.error(
+            self.logger.error(
                 f"Missing placeholder in prompt template: {e}. Ensure template "
-                f"has {{context_str}} and {{query_str}}."
+                f"has {{context_str}} and {{query_str}}.",
+                extra={"run_id": self.run_id, "missing_placeholder": str(e)} if self.run_id else {"missing_placeholder": str(e)},
+                exc_info=True
             )
             # Fallback or re-raise, depending on desired robustness
             raise ValueError(
@@ -169,7 +176,7 @@ class PromptBuilder:
                 f"placeholder: {e}"
             )
 
-        logger.debug(f"Generated prompt: {final_prompt}")
+        self.logger.debug(f"Generated prompt length: {len(final_prompt)} characters", extra={"run_id": self.run_id, "prompt_length": len(final_prompt)} if self.run_id else {"prompt_length": len(final_prompt)})
         return final_prompt
 
 

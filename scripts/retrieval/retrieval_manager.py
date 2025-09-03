@@ -3,6 +3,7 @@ import traceback
 
 
 from scripts.chunking.models import Chunk
+from scripts.utils.logger import LoggerManager
 from scripts.core.project_manager import ProjectManager
 from scripts.embeddings.embedder_registry import get_embedder
 from scripts.retrieval.base import BaseRetriever, FaissRetriever
@@ -22,9 +23,11 @@ class RetrievalManager:
         results = rm.retrieve("alma analytics", top_k=10, strategy="late_fusion")
     """
 
-    def __init__(self, project: ProjectManager):
+    def __init__(self, project: ProjectManager, run_id: Optional[str] = None):
         self.project = project
         self.config = project.config  # required for 'embedding.translate_query'
+        self.run_id = run_id
+        self.logger = LoggerManager.get_logger("retrieval", run_id=run_id)
         self.retrievers: Dict[str, BaseRetriever] = self._load_retrievers()
         self.embedder = get_embedder(project)
         image_index = project.output_dir / "image_index.faiss"
@@ -42,21 +45,18 @@ class RetrievalManager:
             if (self.project.get_metadata_path(f.stem)).exists()
         ]
 
-        print(f"DEBUG: Discovered doc_types: {doc_types}")
+        self.logger.debug(f"Discovered doc_types: {doc_types}", extra={"run_id": self.run_id} if self.run_id else {})
 
         for doc_type in doc_types:
             index_path = self.project.get_faiss_path(doc_type)
             metadata_path = self.project.get_metadata_path(doc_type)
 
-            print(f"DEBUG: Loading retriever for {doc_type}")
-            print(f"       - FAISS path:    {index_path}")
-            print(f"       - Metadata path: {metadata_path}")
+            self.logger.debug(f"Loading retriever for {doc_type}", extra={"run_id": self.run_id, "doc_type": doc_type, "faiss_path": str(index_path), "metadata_path": str(metadata_path)} if self.run_id else {"doc_type": doc_type, "faiss_path": str(index_path), "metadata_path": str(metadata_path)})
 
             try:
                 retrievers[doc_type] = FaissRetriever(index_path, metadata_path)
             except Exception as e:
-                print(f"[WARN] Failed to load retriever for {doc_type}: {e}")
-                traceback.print_exc()
+                self.logger.warning(f"Failed to load retriever for {doc_type}: {e}", extra={"run_id": self.run_id, "doc_type": doc_type} if self.run_id else {"doc_type": doc_type}, exc_info=True)
 
         return retrievers
 
@@ -81,7 +81,7 @@ class RetrievalManager:
         if self.config.get("embedding", {}).get("translate_query", False):
             translated = translate_to_english(query)
             if translated and translated != query:
-                print(f"[ML] Added translated query: {translated}")
+                self.logger.info(f"Added translated query: {translated}", extra={"run_id": self.run_id, "original_query": query, "translated_query": translated} if self.run_id else {"original_query": query, "translated_query": translated})
                 query_vectors.append(self.embed_query(translated))
 
         all_results = []
@@ -121,7 +121,7 @@ class RetrievalManager:
                     promoted_ids.append(source_id)
 
         if promoted_ids:
-            print(f"[DEBUG] Promoted {len(promoted_ids)} text chunks from image hits")
+            self.logger.debug(f"Promoted {len(promoted_ids)} text chunks from image hits", extra={"run_id": self.run_id, "promoted_count": len(promoted_ids)} if self.run_id else {"promoted_count": len(promoted_ids)})
 
         # Only return image chunks that don't have a matching text chunk
         image_results_filtered = [

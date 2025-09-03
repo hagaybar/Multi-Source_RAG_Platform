@@ -14,11 +14,12 @@ from scripts.utils.image_utils import (
     save_image_blob,
     generate_image_filename,
 )
+from scripts.utils.logger import LoggerManager
 
 logger = logging.getLogger("docx_ingestor")
 
 
-def load_docx(path: str | pathlib.Path) -> List[Tuple[str, dict]]:
+def load_docx(path: str | pathlib.Path, run_id: str | None = None) -> List[Tuple[str, dict]]:
     """Extract text and image references from a .docx file as
     (text, metadata) chunks."""
     if not isinstance(path, Path):
@@ -28,8 +29,11 @@ def load_docx(path: str | pathlib.Path) -> List[Tuple[str, dict]]:
     project_root = infer_project_root(path)
     image_dir = get_project_image_dir(project_root.name)
     doc_id = str(path)
-
-    print(f"[loader] Writing image to: {image_dir}")
+    
+    # Initialize logger with run_id support
+    docx_logger = LoggerManager.get_logger("docx_loader", run_id=run_id)
+    
+    docx_logger.debug("Writing image to directory", extra={"run_id": run_id, "doc_id": doc_id, "image_dir": str(image_dir)} if run_id else {"doc_id": doc_id, "image_dir": str(image_dir)})
 
     segments: List[Tuple[str, dict]] = []
 
@@ -60,9 +64,9 @@ def load_docx(path: str | pathlib.Path) -> List[Tuple[str, dict]]:
             if rId in saved_images:
                 # Reuse the existing path
                 image_paths.append(saved_images[rId])
-                print(
-                    f"[DEBUG] Paragraph {para_idx} → reusing image {rId}: "
-                    f"{saved_images[rId]}"
+                docx_logger.debug(
+                    "Reusing image",
+                    extra={"run_id": run_id, "doc_id": doc_id, "paragraph_number": para_idx, "image_rid": rId, "image_path": saved_images[rId]} if run_id else {"doc_id": doc_id, "paragraph_number": para_idx, "image_rid": rId, "image_path": saved_images[rId]}
                 )
             else:
                 # Get the image part
@@ -91,53 +95,41 @@ def load_docx(path: str | pathlib.Path) -> List[Tuple[str, dict]]:
                 image_paths.append(saved_path)
                 img_counter += 1
 
-                print(
-                    f"[DEBUG] Paragraph {para_idx} → saved new image {rId}: "
-                    f"{saved_path}"
-                )
-                logger.info(
-                    f"[DOCX] Paragraph {para_idx} → saved image {rId}: {saved_path}"
+                docx_logger.info(
+                    "Saved new image",
+                    extra={"run_id": run_id, "doc_id": doc_id, "paragraph_number": para_idx, "image_rid": rId, "image_path": saved_path} if run_id else {"doc_id": doc_id, "paragraph_number": para_idx, "image_rid": rId, "image_path": saved_path}
                 )
 
         # Add image paths to metadata if any were found
         if image_paths:
             meta["image_paths"] = image_paths
-            print(
-                f"[DEBUG] Paragraph {para_idx} → extracted {len(image_paths)} "
-                f"image(s): {image_paths}"
-            )
-            logger.info(
-                f"[DOCX] [DEBUG] Paragraph {para_idx} → extracted {len(image_paths)} "
-                f"image(s): {image_paths}"
+            docx_logger.debug(
+                "Extracted images from paragraph",
+                extra={"run_id": run_id, "doc_id": doc_id, "paragraph_number": para_idx, "image_count": len(image_paths), "image_paths": image_paths} if run_id else {"doc_id": doc_id, "paragraph_number": para_idx, "image_count": len(image_paths), "image_paths": image_paths}
             )
 
         # Create segment if there's text or images
         if text or image_paths:
             segments.append((text or "[Image-only content]", meta))
         else:
-            print(
-                f"[DEBUG] Paragraph {para_idx} was skipped — "
-                f"no text and no images recorded."
-            )
-            logger.debug(
-                f"[DOCX] [DEBUG] Paragraph {para_idx} was skipped — "
-                f"no text and no images recorded."
+            docx_logger.debug(
+                "Paragraph skipped - no content",
+                extra={"run_id": run_id, "doc_id": doc_id, "paragraph_number": para_idx} if run_id else {"doc_id": doc_id, "paragraph_number": para_idx}
             )
 
-    # Debug: Print all segments with images
-    print(f"\n[DEBUG] All segments with images:")
-    for idx, (text, meta) in enumerate(segments):
-        if 'image_paths' in meta:
-            print(
-                f"  Segment {idx}: Paragraph {meta['paragraph_number']}, "
-                f"Images: {meta['image_paths']}"
-            )
+    # Debug: Log all segments with images
+    image_segments = [(idx, meta) for idx, (text, meta) in enumerate(segments) if 'image_paths' in meta]
+    if image_segments:
+        docx_logger.debug(
+            "All segments with images summary",
+            extra={"run_id": run_id, "doc_id": doc_id, "image_segment_count": len(image_segments), "image_segments": [f"Segment {idx}: Paragraph {meta['paragraph_number']}, Images: {meta['image_paths']}" for idx, meta in image_segments]} if run_id else {"doc_id": doc_id, "image_segment_count": len(image_segments), "image_segments": [f"Segment {idx}: Paragraph {meta['paragraph_number']}, Images: {meta['image_paths']}" for idx, meta in image_segments]}
+        )
 
-    print(
-        f"[INFO] Extracted {sum('image_paths' in m for _, m in segments)} "
-        f"image-attached chunks from {path.name}"
+    image_attached_chunks = sum('image_paths' in m for _, m in segments)
+    docx_logger.info(
+        "Extraction complete",
+        extra={"run_id": run_id, "doc_id": doc_id, "total_segments": len(segments), "image_attached_chunks": image_attached_chunks, "file_name": path.name} if run_id else {"doc_id": doc_id, "total_segments": len(segments), "image_attached_chunks": image_attached_chunks, "file_name": path.name}
     )
-    print(f"[INFO] Total segments: {len(segments)}")
 
     # Add tables
     for tbl_idx, table in enumerate(document.tables, start=1):
@@ -157,12 +149,10 @@ def load_docx(path: str | pathlib.Path) -> List[Tuple[str, dict]]:
             segments.append((tbl_text, meta))
 
     # Final verification
-    print(f"\n[FINAL DEBUG] Returning {len(segments)} segments")
-    for i, (text, meta) in enumerate(segments):
-        if 'image_paths' in meta:
-            print(
-                f"  Segment {i}: {meta.get('doc_type')} para "
-                f"{meta.get('paragraph_number', 'N/A')}, images: {meta['image_paths']}"
-            )
+    final_image_segments = [(i, meta) for i, (text, meta) in enumerate(segments) if 'image_paths' in meta]
+    docx_logger.debug(
+        "Final segment verification",
+        extra={"run_id": run_id, "doc_id": doc_id, "total_segments": len(segments), "final_image_segments": [f"Segment {i}: {meta.get('doc_type')} para {meta.get('paragraph_number', 'N/A')}, images: {meta['image_paths']}" for i, meta in final_image_segments]} if run_id else {"doc_id": doc_id, "total_segments": len(segments), "final_image_segments": [f"Segment {i}: {meta.get('doc_type')} para {meta.get('paragraph_number', 'N/A')}, images: {meta['image_paths']}" for i, meta in final_image_segments]}
+    )
 
     return segments
