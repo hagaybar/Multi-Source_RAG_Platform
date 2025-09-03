@@ -27,7 +27,12 @@ class RetrievalManager:
         self.project = project
         self.config = project.config  # required for 'embedding.translate_query'
         self.run_id = run_id
-        self.logger = LoggerManager.get_logger("retrieval", run_id=run_id)
+        # Use project-specific TaskPaths for logging
+        self.logger = LoggerManager.get_logger(
+            "retrieval", 
+            task_paths=project.get_task_paths(),
+            run_id=run_id
+        )
         self.retrievers: Dict[str, BaseRetriever] = self._load_retrievers()
         self.embedder = get_embedder(project)
         image_index = project.output_dir / "image_index.faiss"

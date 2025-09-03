@@ -795,7 +795,7 @@ class PipelineRunner:
         )
 
         try:
-            prompt_builder = PromptBuilder()
+            prompt_builder = PromptBuilder(project=self.project, run_id=self._run_id)
             prompt = prompt_builder.build_prompt(query, context_chunks=self.retrieved_chunks)
             yield f"📜 Prompt built. Sending to model: {model_to_use}..."
 

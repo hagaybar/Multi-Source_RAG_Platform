@@ -9,8 +9,10 @@ from scripts.utils.image_utils import (
     infer_project_root,
     record_image_metadata,
 )
+from scripts.utils.logger import LoggerManager
 
-logger = logging.getLogger("pptx_ingestor")
+# Initialize logger with proper file output
+logger = LoggerManager.get_logger("pptx_ingestor")
 
 
 class PptxIngestor(AbstractIngestor):

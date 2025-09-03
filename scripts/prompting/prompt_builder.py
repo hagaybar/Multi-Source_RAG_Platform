@@ -80,7 +80,7 @@ class PromptBuilder:
     context chunks.
     """
 
-    def __init__(self, template: str | None = None, run_id: Optional[str] = None):
+    def __init__(self, template: str | None = None, run_id: Optional[str] = None, project=None):
         """
         Initializes the PromptBuilder.
 
@@ -88,9 +88,20 @@ class PromptBuilder:
             template (str, optional): A custom prompt template.
                 If None, DEFAULT_PROMPT_TEMPLATE is used.
                 Must contain {context_str} and {query_str} placeholders.
+            run_id (str, optional): Run identifier for logging
+            project (ProjectManager, optional): Project for project-specific logging
         """
         self.run_id = run_id
-        self.logger = LoggerManager.get_logger("prompt", run_id=run_id)
+        # Use project-specific logging if project is provided
+        if project:
+            self.logger = LoggerManager.get_logger(
+                "prompt", 
+                task_paths=project.get_task_paths(),
+                run_id=run_id
+            )
+        else:
+            # Fall back to global logging
+            self.logger = LoggerManager.get_logger("prompt", run_id=run_id)
         self.template = template or DEFAULT_PROMPT_TEMPLATE_V2
         if ("{context_str}" not in self.template or
                 "{query_str}" not in self.template):

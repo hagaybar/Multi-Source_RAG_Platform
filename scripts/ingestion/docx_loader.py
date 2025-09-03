@@ -16,7 +16,8 @@ from scripts.utils.image_utils import (
 )
 from scripts.utils.logger import LoggerManager
 
-logger = logging.getLogger("docx_ingestor")
+# Initialize logger with proper file output  
+logger = LoggerManager.get_logger("docx_ingestor")
 
 
 def load_docx(path: str | pathlib.Path, run_id: str | None = None) -> List[Tuple[str, dict]]:

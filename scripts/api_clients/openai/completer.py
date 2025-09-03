@@ -2,8 +2,10 @@ import os
 import litellm
 import logging
 
-# Initialize logger for this module
-logger = logging.getLogger(__name__)
+from scripts.utils.logger import LoggerManager
+
+# Initialize logger with proper file output
+logger = LoggerManager.get_logger("openai_completer")
 
 
 class OpenAICompleter:
@@ -100,6 +102,9 @@ class OpenAICompleter:
 
         try:
             response = litellm.completion(**params)
+            print("RAW RESPONSE (repr):", repr(response))
+            print("RAW RESPONSE (dict):", getattr(response, "__dict__", response))
+            logger.debug(f"Raw LiteLLM response: {response}")
 
             if (
                 hasattr(response, "choices")
@@ -162,6 +167,9 @@ class OpenAICompleter:
                 max_tokens=max_tokens,
                 api_key=os.getenv("OPEN_AI"),
             )
+            print("RAW RESPONSE (repr):", repr(response))
+            print("RAW RESPONSE (dict):", getattr(response, "__dict__", response))
+            logger.debug(f"Raw LiteLLM response: {response}")
 
             if (
                 response.choices

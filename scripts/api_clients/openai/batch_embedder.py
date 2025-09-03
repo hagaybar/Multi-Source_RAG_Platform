@@ -24,8 +24,12 @@ class BatchEmbedder:
 
         self.model = model
         self.output_dir = Path(output_dir)
-        self.logger = logger or logging.getLogger(__name__)
-        # self.logger = LoggerManager.get_logger("batch_embedder")
+        # Use LoggerManager for consistent file logging
+        if logger:
+            self.logger = logger
+        else:
+            from scripts.utils.logger import LoggerManager
+            self.logger = LoggerManager.get_logger("batch_embedder")
         self.api_key = api_key or os.getenv("OPEN_AI")
 
         print("DEBUG: BatchEmbedder init parameters:")

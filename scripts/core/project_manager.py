@@ -17,10 +17,13 @@ class ProjectManager:
         self.root_dir = Path(root_dir).resolve()
         self.config_path = self.root_dir / "config.yml"
 
-        # App-level project/config logger → logs/app/project.log (JSON)
+        # Project-specific logging using unified TaskPaths
+        self._task_paths = TaskPaths(project_root=self.root_dir)
+        
+        # Project-level logger → <project_root>/logs/project.log (JSON)
         self._proj_log = LoggerManager.get_logger(
             name="project",
-            task_paths=TaskPaths(),
+            task_paths=self._task_paths,
             run_id=None,
             use_json=True,
         )
@@ -111,12 +114,20 @@ class ProjectManager:
 
     def get_log_path(self, module: str, run_id: str | None = None) -> Path:
         """
-        Returns the path for a log file under the project-specific output/logs/
-        directory.
-        If run_id is provided, it appends it to the filename.
+        Returns the path for a log file using the unified TaskPaths system.
+        
+        DEPRECATED: Use get_task_paths() and TaskPaths.get_module_log_path() instead.
+        This method is kept for backward compatibility.
         """
-        name = f"{module}.log" if not run_id else f"{module}_{run_id}.log"
-        return self.logs_dir / name
+        log_path = self._task_paths.get_module_log_path(module, run_id)
+        return Path(log_path)
+    
+    def get_task_paths(self) -> TaskPaths:
+        """
+        Get the TaskPaths instance for this project.
+        Use this for creating loggers with unified path management.
+        """
+        return self._task_paths
 
     def get_chunks_path(self) -> Path:
         return self.root_dir / "input" / "chunks.tsv"
