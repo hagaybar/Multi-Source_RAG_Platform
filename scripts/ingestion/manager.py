@@ -23,7 +23,7 @@ class IngestionManager:
         self.logger.debug("Logger created, checking handlers...", extra={"run_id": run_id} if run_id else {})
         for handler in self.logger.handlers:
             if isinstance(handler, logging.FileHandler):
-                self.logger.debug(f"FileHandler baseFilename: {handler.baseFilename}", extra={"run_id": run_id, "handler_type": "FileHandler", "filename": handler.baseFilename} if run_id else {"handler_type": "FileHandler", "filename": handler.baseFilename})
+                self.logger.debug(f"FileHandler baseFilename: {handler.baseFilename}", extra={"run_id": run_id, "handler_type": "FileHandler", "log_filename": handler.baseFilename} if run_id else {"handler_type": "FileHandler", "log_filename": handler.baseFilename})
 
     def ingest_path(self, path: str | pathlib.Path) -> List[RawDoc]:
         self.logger.info(f"Starting ingestion from: {path.resolve()}", extra={"run_id": self.run_id, "ingestion_path": str(path.resolve())} if self.run_id else {"ingestion_path": str(path.resolve())})
