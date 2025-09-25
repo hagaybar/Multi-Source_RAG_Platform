@@ -1,6 +1,6 @@
 from .csv import load_csv
 from .docx_loader import load_docx
-from .email_loader import load_eml
+from .email_loader import load_eml, load_msg, load_mbox
 from .xlsx import XlsxIngestor  # Import XlsxIngestor class
 from .pdf import load_pdf  # Add this import
 from .pptx import PptxIngestor  # Import PptxIngestor
@@ -19,6 +19,8 @@ LOADER_REGISTRY = {
     ".csv": load_csv,
     ".docx": load_docx,
     ".eml": load_eml,
+    ".msg": load_msg,  # Outlook message files
+    ".mbox": load_mbox,  # Mailbox format (bulk email)
     ".pdf": load_pdf,  # Add this mapping
     ".pptx": PptxIngestor,  # Map .pptx to PptxIngestor class
     ".xlsx": XlsxIngestor,  # Map .xlsx to XlsxIngestor class

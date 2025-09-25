@@ -280,6 +280,29 @@ files = [
 ]
 
 [[package]]
+name = "beautifulsoup4"
+version = "4.13.5"
+description = "Screen-scraping library"
+optional = false
+python-versions = ">=3.7.0"
+groups = ["main"]
+files = [
+    {file = "beautifulsoup4-4.13.5-py3-none-any.whl", hash = "sha256:642085eaa22233aceadff9c69651bc51e8bf3f874fb6d7104ece2beb24b47c4a"},
+    {file = "beautifulsoup4-4.13.5.tar.gz", hash = "sha256:5e70131382930e7c3de33450a2f54a63d5e4b19386eab43a5b34d594268f3695"},
+]
+
+[package.dependencies]
+soupsieve = ">1.2"
+typing-extensions = ">=4.0.0"
+
+[package.extras]
+cchardet = ["cchardet"]
+chardet = ["chardet"]
+charset-normalizer = ["charset-normalizer"]
+html5lib = ["html5lib"]
+lxml = ["lxml"]
+
+[[package]]
 name = "black"
 version = "25.1.0"
 description = "The uncompromising code formatter."
@@ -691,6 +714,18 @@ files = [
 markers = {main = "sys_platform == \"win32\" or platform_system == \"Windows\"", dev = "sys_platform == \"win32\""}
 
 [[package]]
+name = "colorclass"
+version = "2.2.2"
+description = "Colorful worry-free console applications for Linux, Mac OS X, and Windows."
+optional = false
+python-versions = ">=2.6"
+groups = ["main"]
+files = [
+    {file = "colorclass-2.2.2-py2.py3-none-any.whl", hash = "sha256:6f10c273a0ef7a1150b1120b6095cbdd68e5cf36dfd5d0fc957a2500bbf99a55"},
+    {file = "colorclass-2.2.2.tar.gz", hash = "sha256:6d4fe287766166a98ca7bc6f6312daf04a0481b1eda43e7173484051c0ab4366"},
+]
+
+[[package]]
 name = "colorlog"
 version = "6.9.0"
 description = "Add colours to the output of Python's logging module."
@@ -707,6 +742,18 @@ colorama = {version = "*", markers = "sys_platform == \"win32\""}
 
 [package.extras]
 development = ["black", "flake8", "mypy", "pytest", "types-colorama"]
+
+[[package]]
+name = "compressed-rtf"
+version = "1.0.7"
+description = "Compressed Rich Text Format (RTF) compression and decompression package"
+optional = false
+python-versions = "*"
+groups = ["main"]
+files = [
+    {file = "compressed_rtf-1.0.7-py3-none-any.whl", hash = "sha256:b7904921d78c67a0a4b7fff9fb361a00ae2b447b6edca010ce321cd98fa0fcc0"},
+    {file = "compressed_rtf-1.0.7.tar.gz", hash = "sha256:7c30859334839f3cdc7d10796af5b434bb326b9df7cb5a65e95a8eacb2951b0e"},
+]
 
 [[package]]
 name = "confection"
@@ -870,6 +917,29 @@ trio = ["trio (>=0.23)"]
 wmi = ["wmi (>=1.5.1)"]
 
 [[package]]
+name = "easygui"
+version = "0.98.3"
+description = "EasyGUI is a module for very simple, very easy GUI programming in Python.  EasyGUI is different from other GUI generators in that EasyGUI is NOT event-driven.  Instead, all GUI interactions are invoked by simple function calls."
+optional = false
+python-versions = "*"
+groups = ["main"]
+files = [
+    {file = "easygui-0.98.3-py2.py3-none-any.whl", hash = "sha256:33498710c68b5376b459cd3fc48d1d1f33822139eb3ed01defbc0528326da3ba"},
+    {file = "easygui-0.98.3.tar.gz", hash = "sha256:d653ff79ee1f42f63b5a090f2f98ce02335d86ad8963b3ce2661805cafe99a04"},
+]
+
+[[package]]
+name = "ebcdic"
+version = "1.1.1"
+description = "Additional EBCDIC codecs"
+optional = false
+python-versions = "*"
+groups = ["main"]
+files = [
+    {file = "ebcdic-1.1.1-py2.py3-none-any.whl", hash = "sha256:33b4cb729bc2d0bf46cc1847b0e5946897cb8d3f53520c5b9aa5fa98d7e735f1"},
+]
+
+[[package]]
 name = "email-validator"
 version = "2.2.0"
 description = "A robust email address syntax and deliverability validation library."
@@ -896,6 +966,34 @@ files = [
     {file = "et_xmlfile-2.0.0-py3-none-any.whl", hash = "sha256:7a91720bc756843502c3b7504c77b8fe44217c85c537d85037f0f536151b2caa"},
     {file = "et_xmlfile-2.0.0.tar.gz", hash = "sha256:dab3f4764309081ce75662649be815c4c9081e88f0837825f90fd28317d4da54"},
 ]
+
+[[package]]
+name = "extract-msg"
+version = "0.55.0"
+description = "Extracts emails and attachments saved in Microsoft Outlook's .msg files"
+optional = false
+python-versions = ">=3.8"
+groups = ["main"]
+files = [
+    {file = "extract_msg-0.55.0-py3-none-any.whl", hash = "sha256:baf0cdee9a8d267b70c366bc57ceb03dbfa1e7ab2dca6824169a7fe623f0917c"},
+    {file = "extract_msg-0.55.0.tar.gz", hash = "sha256:cf08283498c3dfcc7f894dad1579f52e3ced9fb76b865c2355cbe757af8a54e1"},
+]
+
+[package.dependencies]
+beautifulsoup4 = ">=4.11.1,<4.14"
+compressed-rtf = ">=1.0.6,<2"
+ebcdic = ">=1.1.1,<2"
+olefile = "0.47"
+red-black-tree-mod = ">=1.20,<=1.23"
+RTFDE = ">=0.1.1,<0.2"
+tzlocal = ">=4.2,<6"
+
+[package.extras]
+all = ["extract-msg[encoding]", "extract-msg[image]", "extract-msg[mime]"]
+encoding = ["chardet (>=3.0.0,<6)"]
+image = ["Pillow (>=9.5.0,<10)"]
+mime = ["python-magic (>=0.4.27,<0.5)"]
+readthedocs = ["sphinx-rtd-theme"]
 
 [[package]]
 name = "faiss-cpu"
@@ -1607,6 +1705,24 @@ build = ["build", "twine"]
 test = ["pytest", "pytest-cov"]
 
 [[package]]
+name = "lark"
+version = "1.1.9"
+description = "a modern parsing library"
+optional = false
+python-versions = ">=3.6"
+groups = ["main"]
+files = [
+    {file = "lark-1.1.9-py3-none-any.whl", hash = "sha256:a0dd3a87289f8ccbb325901e4222e723e7d745dbfc1803eaf5f3d2ace19cf2db"},
+    {file = "lark-1.1.9.tar.gz", hash = "sha256:15fa5236490824c2c4aba0e22d2d6d823575dcaf4cdd1848e34b6ad836240fba"},
+]
+
+[package.extras]
+atomic-cache = ["atomicwrites"]
+interegular = ["interegular (>=0.3.1,<0.4.0)"]
+nearley = ["js2py"]
+regex = ["regex"]
+
+[[package]]
 name = "litellm"
 version = "1.73.0"
 description = "Library to easily interface with LLM API providers"
@@ -2086,6 +2202,23 @@ develop = ["codecov", "pycodestyle", "pytest (>=4.6)", "pytest-cov", "wheel"]
 docs = ["sphinx"]
 gmpy = ["gmpy2 (>=2.1.0a4) ; platform_python_implementation != \"PyPy\""]
 tests = ["pytest (>=4.6)"]
+
+[[package]]
+name = "msoffcrypto-tool"
+version = "5.4.2"
+description = "Python tool and library for decrypting and encrypting MS Office files using a password or other keys"
+optional = false
+python-versions = "<4.0,>=3.8"
+groups = ["main"]
+markers = "platform_python_implementation != \"PyPy\" or platform_system != \"Windows\" and platform_system != \"Darwin\""
+files = [
+    {file = "msoffcrypto_tool-5.4.2-py3-none-any.whl", hash = "sha256:274fe2181702d1e5a107ec1b68a4c9fea997a44972ae1cc9ae0cb4f6a50fef0e"},
+    {file = "msoffcrypto_tool-5.4.2.tar.gz", hash = "sha256:44b545adba0407564a0cc3d6dde6ca36b7c0fdf352b85bca51618fa1d4817370"},
+]
+
+[package.dependencies]
+cryptography = ">=39.0"
+olefile = ">=0.46"
 
 [[package]]
 name = "multidict"
@@ -2612,6 +2745,44 @@ signals = ["blinker (>=1.4.0)"]
 signedtoken = ["cryptography (>=3.0.0)", "pyjwt (>=2.0.0,<3)"]
 
 [[package]]
+name = "olefile"
+version = "0.47"
+description = "Python package to parse, read and write Microsoft OLE2 files (Structured Storage or Compound Document, Microsoft Office)"
+optional = false
+python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*"
+groups = ["main"]
+files = [
+    {file = "olefile-0.47-py2.py3-none-any.whl", hash = "sha256:543c7da2a7adadf21214938bb79c83ea12b473a4b6ee4ad4bf854e7715e13d1f"},
+    {file = "olefile-0.47.zip", hash = "sha256:599383381a0bf3dfbd932ca0ca6515acd174ed48870cbf7fee123d698c192c1c"},
+]
+
+[package.extras]
+tests = ["pytest", "pytest-cov"]
+
+[[package]]
+name = "oletools"
+version = "0.60.2"
+description = "Python tools to analyze security characteristics of MS Office and OLE files (also called Structured Storage, Compound File Binary Format or Compound Document File Format), for Malware Analysis and Incident Response #DFIR"
+optional = false
+python-versions = "*"
+groups = ["main"]
+files = [
+    {file = "oletools-0.60.2-py2.py3-none-any.whl", hash = "sha256:72ad8bd748fd0c4e7b5b4733af770d11543ebb2bf2697455f99f975fcd50cc96"},
+    {file = "oletools-0.60.2.zip", hash = "sha256:ad452099f4695ffd8855113f453348200d195ee9fa341a09e197d66ee7e0b2c3"},
+]
+
+[package.dependencies]
+colorclass = "*"
+easygui = "*"
+msoffcrypto-tool = {version = "*", markers = "platform_python_implementation != \"PyPy\" or python_version >= \"3\" and platform_system != \"Windows\" and platform_system != \"Darwin\""}
+olefile = ">=0.46"
+pcodedmp = ">=1.2.5"
+pyparsing = ">=2.1.0,<4"
+
+[package.extras]
+full = ["XLMMacroDeobfuscator"]
+
+[[package]]
 name = "openai"
 version = "1.90.0"
 description = "The official Python library for the openai API"
@@ -2845,6 +3016,22 @@ files = [
     {file = "pathspec-0.12.1-py3-none-any.whl", hash = "sha256:a0d503e138a4c123b27490a4f7beda6a01c6f288df0e4a8b79c7eb0dc7b4cc08"},
     {file = "pathspec-0.12.1.tar.gz", hash = "sha256:a482d51503a1ab33b1c67a6c3813a26953dbdc71c31dacaef9a838c4e29f5712"},
 ]
+
+[[package]]
+name = "pcodedmp"
+version = "1.2.6"
+description = "A VBA p-code disassembler"
+optional = false
+python-versions = "*"
+groups = ["main"]
+files = [
+    {file = "pcodedmp-1.2.6-py2.py3-none-any.whl", hash = "sha256:4441f7c0ab4cbda27bd4668db3b14f36261d86e5059ce06c0828602cbe1c4278"},
+    {file = "pcodedmp-1.2.6.tar.gz", hash = "sha256:025f8c809a126f45a082ffa820893e6a8d990d9d7ddb68694b5a9f0a6dbcd955"},
+]
+
+[package.dependencies]
+oletools = ">=0.54"
+win-unicode-console = {version = "*", markers = "platform_system == \"Windows\" and platform_python_implementation != \"PyPy\""}
 
 [[package]]
 name = "pdfminer-six"
@@ -3542,6 +3729,21 @@ docs = ["sphinx (>=1.6.5)", "sphinx-rtd-theme"]
 tests = ["hypothesis (>=3.27.0)", "pytest (>=3.2.1,!=3.3.0)"]
 
 [[package]]
+name = "pyparsing"
+version = "3.2.5"
+description = "pyparsing - Classes and methods to define and execute parsing grammars"
+optional = false
+python-versions = ">=3.9"
+groups = ["main"]
+files = [
+    {file = "pyparsing-3.2.5-py3-none-any.whl", hash = "sha256:e38a4f02064cf41fe6593d328d0512495ad1f3d8a91c4f73fc401b3079a59a5e"},
+    {file = "pyparsing-3.2.5.tar.gz", hash = "sha256:2df8d5b7b2802ef88e8d016a2eb9c7aeaa923529cd251ed0fe4608275d4105b6"},
+]
+
+[package.extras]
+diagrams = ["jinja2", "railroad-diagrams"]
+
+[[package]]
 name = "pypdfium2"
 version = "4.30.1"
 description = "Python bindings to PDFium"
@@ -3735,6 +3937,17 @@ files = [
     {file = "PyYAML-6.0.2-cp39-cp39-win32.whl", hash = "sha256:6395c297d42274772abc367baaa79683958044e5d3835486c16da75d2a694631"},
     {file = "PyYAML-6.0.2-cp39-cp39-win_amd64.whl", hash = "sha256:39693e1f8320ae4f43943590b49779ffb98acb81f788220ea932a6b6c51004d8"},
     {file = "pyyaml-6.0.2.tar.gz", hash = "sha256:d584d9ec91ad65861cc08d42e834324ef890a082e591037abe114850ff7bbc3e"},
+]
+
+[[package]]
+name = "red-black-tree-mod"
+version = "1.22"
+description = "Flexible python implementation of red black trees"
+optional = false
+python-versions = "*"
+groups = ["main"]
+files = [
+    {file = "red-black-tree-mod-1.22.tar.gz", hash = "sha256:38e3652903a2bf96379c27c2082ca0b7b905158662dd7ef0c97f4fd93a9aa908"},
 ]
 
 [[package]]
@@ -4063,6 +4276,26 @@ click = ">=5"
 redis = ">=3.5,<6.0.0 || >6.0.0"
 
 [[package]]
+name = "rtfde"
+version = "0.1.2.1"
+description = "A library for extracting HTML content from RTF encapsulated HTML as commonly found in the exchange MSG email format."
+optional = false
+python-versions = ">=3.8"
+groups = ["main"]
+files = [
+    {file = "rtfde-0.1.2.1-py3-none-any.whl", hash = "sha256:c44dfa923a435c54cdbdd0e0f5352a4075542af317af061f82f2d4f032271645"},
+    {file = "rtfde-0.1.2.1.tar.gz", hash = "sha256:ea2653fb163ef1e9fdd1b0849bef88b0ba82537f860d4aca5b2c49f556efaaaa"},
+]
+
+[package.dependencies]
+lark = ">=1.1.8,<1.2.0"
+oletools = ">=0.56"
+
+[package.extras]
+dev = ["coverage (>=7.2.2,<7.3.0)", "lxml (>=4.6,<5.0)", "mypy (>=1.1,<2.0)", "pdoc3 (>=0.10.0,<0.11.0)"]
+msg-parse = ["extract_msg (>=0.27,<1.0)"]
+
+[[package]]
 name = "ruff"
 version = "0.12.5"
 description = "An extremely fast Python linter and code formatter, written in Rust."
@@ -4382,6 +4615,18 @@ groups = ["main"]
 files = [
     {file = "sniffio-1.3.1-py3-none-any.whl", hash = "sha256:2f6da418d1f1e0fddd844478f41680e794e6051915791a034ff65e5f100525a2"},
     {file = "sniffio-1.3.1.tar.gz", hash = "sha256:f4324edc670a0f49750a81b895f35c3adb843cca46f0530f79fc1babb23789dc"},
+]
+
+[[package]]
+name = "soupsieve"
+version = "2.8"
+description = "A modern CSS selector implementation for Beautiful Soup."
+optional = false
+python-versions = ">=3.9"
+groups = ["main"]
+files = [
+    {file = "soupsieve-2.8-py3-none-any.whl", hash = "sha256:0cc76456a30e20f5d7f2e14a98a4ae2ee4e5abdc7c5ea0aafe795f344bc7984c"},
+    {file = "soupsieve-2.8.tar.gz", hash = "sha256:e2dd4a40a628cb5f28f6d4b0db8800b8f581b65bb380b97de22ba5ca8d72572f"},
 ]
 
 [[package]]
@@ -5427,6 +5672,18 @@ MarkupSafe = ">=2.1.1"
 watchdog = ["watchdog (>=2.3)"]
 
 [[package]]
+name = "win-unicode-console"
+version = "0.5"
+description = "Enable Unicode input and display when running Python from Windows console."
+optional = false
+python-versions = "*"
+groups = ["main"]
+markers = "platform_system == \"Windows\" and platform_python_implementation != \"PyPy\""
+files = [
+    {file = "win_unicode_console-0.5.zip", hash = "sha256:d4142d4d56d46f449d6f00536a73625a871cba040f0bc1a2e305a04578f07d1e"},
+]
+
+[[package]]
 name = "wrapt"
 version = "1.17.2"
 description = "Module for decorators, wrappers and monkey patching."
@@ -5669,4 +5926,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<3.14"
-content-hash = "6a6d398c14cb104ffd0d377a1cf013cddc678471bc6b69029d942b06f2b58454"
+content-hash = "f48bf513bf50b8229f58dd2997f6d2d4424024bf940d52fb23d053cc8a65f4a5"
