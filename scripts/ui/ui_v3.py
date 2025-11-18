@@ -18,6 +18,13 @@ from scripts.ui.ui_project_manager import (
     render_raw_file_viewer,
 )
 from scripts.ui.ui_custom_pipeline import render_custom_pipeline_tab
+from scripts.ui.ui_outlook_manager import (
+    render_outlook_connection_test,
+    render_outlook_project_creation,
+    render_outlook_email_preview,
+    render_outlook_ingestion_controls,
+    is_outlook_project,
+)
 
 
 st.set_page_config(page_title="RAG-GP UI", layout="wide")
@@ -31,7 +38,7 @@ st.title("📘 RAG-GP Streamlit Interface")
 ui_logger.info("RAG-GP UI session started", extra={"action": "session_start", "ui_component": "main_interface"})
 
 # Define tab options once
-TAB_OPTIONS = ["Projects", "Data", "Pipeline Actions", "Utilities / Tools"]
+TAB_OPTIONS = ["Projects", "Data", "Outlook Integration", "Pipeline Actions", "Utilities / Tools"]
 
 # Ensure session state key exists on first load
 if "section" not in st.session_state:
@@ -129,6 +136,62 @@ elif section == "Data":
     st.info("This section will allow you to manage raw and processed project data.")
     st.subheader("Ingested Files")
     st.write("(List of raw documents, upload options, etc. will be shown here.)")
+
+# Section: Outlook Integration
+elif section == "Outlook Integration":
+    st.header("📧 Outlook Integration")
+    ui_logger.info("Outlook integration section accessed", extra={
+        "action": "section_access",
+        "section": "outlook_integration",
+        "ui_component": "outlook_tab"
+    })
+
+    # Check if there's a selected project
+    base_path = Path("data/projects")
+    if not base_path.exists():
+        base_path.mkdir(parents=True)
+
+    all_projects = [p.name for p in base_path.iterdir() if p.is_dir()]
+
+    if not all_projects:
+        st.info("No projects found. Create an Outlook project to get started.")
+        st.markdown("---")
+        render_outlook_project_creation()
+    else:
+        # Get selected project from session state
+        if "selected_project" in st.session_state and st.session_state.selected_project:
+            project_path = base_path / st.session_state.selected_project
+
+            # Check if this is an Outlook project
+            if is_outlook_project(project_path):
+                st.success(f"📧 Project '{st.session_state.selected_project}' has Outlook integration enabled")
+
+                # Connection test
+                render_outlook_connection_test()
+                st.markdown("---")
+
+                # Email preview
+                render_outlook_email_preview(project_path)
+                st.markdown("---")
+
+                # Ingestion controls
+                render_outlook_ingestion_controls(project_path)
+
+            else:
+                st.info(
+                    f"Project '{st.session_state.selected_project}' does not have "
+                    "Outlook integration enabled."
+                )
+                st.markdown("You can either:")
+                st.markdown("1. Create a new Outlook project below")
+                st.markdown("2. Or manually add Outlook configuration to your existing project's config.yml")
+
+        else:
+            st.warning("Please select a project from the 'Projects' tab first.")
+
+        # Always show project creation option
+        st.markdown("---")
+        render_outlook_project_creation()
 
 # Section: Pipeline Actions
 elif section == "Pipeline Actions":

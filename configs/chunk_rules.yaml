@@ -30,6 +30,13 @@ pst:
   max_tokens: 300
   overlap: 5
 
+# Outlook emails from local client (via OutlookConnector)
+outlook_eml:
+  strategy: by_email_block
+  min_tokens: 20
+  max_tokens: 300
+  overlap: 5
+
 # === Word Processing ===
 docx:
   strategy: by_paragraph
