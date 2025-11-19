@@ -420,8 +420,17 @@ def render_outlook_ingestion_controls(project_path: Path):
                         max_emails=outlook_config_dict.get("max_emails")
                     )
 
-                    # Run ingestion
-                    ingestion_mgr = IngestionManager()
+                    # Create log directory if it doesn't exist
+                    log_dir = project_path / "logs"
+                    log_dir.mkdir(parents=True, exist_ok=True)
+
+                    # Create log file path for this run
+                    from datetime import datetime
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    log_file = log_dir / f"outlook_ingestion_{timestamp}.log"
+
+                    # Run ingestion with proper logging
+                    ingestion_mgr = IngestionManager(log_file=log_file)
                     raw_docs = ingestion_mgr.ingest_outlook(outlook_config)
 
                     if raw_docs:
