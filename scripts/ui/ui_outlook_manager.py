@@ -252,15 +252,17 @@ def render_outlook_project_creation():
                     # Show project details
                     st.info(f"📁 **Project Location:** `{project_root}`")
 
+                    # Update session state to select this project
+                    st.session_state.selected_project = project_name.strip()
+
                     # Show next steps
                     with st.expander("📋 Next Steps"):
                         st.markdown("""
                         **Your Outlook project is ready! Here's what you can do next:**
 
-                        1. **Test Connection**: Use the "Outlook Integration" tab to test your connection
-                        2. **Preview Emails**: See which emails will be extracted
-                        3. **Extract Emails**: Click "Refresh Emails" to extract emails from Outlook
-                        4. **Run Pipeline**: Use "Pipeline Actions" to process your emails
+                        1. **Stay on this tab** to test connection and preview emails (after reload)
+                        2. **Or go to "Projects" tab** to select this project first
+                        3. **Then return here** to see Test Connection and Preview features
 
                         **Outlook Configuration:**
                         - Account: {account}
@@ -274,7 +276,11 @@ def render_outlook_project_creation():
                             max_emails=max_emails if max_emails > 0 else "No limit"
                         ))
 
+                    st.info("🔄 **Refreshing page to load your new project...**")
+
                     # Auto-refresh to show new project
+                    import time
+                    time.sleep(2)  # Brief pause to show success message
                     st.rerun()
 
                 except Exception as e:
