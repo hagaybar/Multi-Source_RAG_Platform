@@ -434,22 +434,24 @@ def render_outlook_ingestion_controls(project_path: Path):
                     raw_docs = ingestion_mgr.ingest_outlook(outlook_config)
 
                     if raw_docs:
-                        # Save emails to disk as .outlook_eml files (JSON format)
+                        # Save all emails to ONE JSONL file (follows MBOX pattern)
                         import json
                         raw_dir = project_path / "input" / "raw" / "outlook_eml"
                         raw_dir.mkdir(parents=True, exist_ok=True)
 
-                        # Save each email as a separate .outlook_eml file
-                        for i, doc in enumerate(raw_docs, start=1):
-                            email_file = raw_dir / f"email_{i:03d}.outlook_eml"
-                            with email_file.open("w", encoding="utf-8") as f:
+                        # Save all emails in single JSONL file (one email per line)
+                        email_file = raw_dir / "emails.outlook_eml"
+                        with email_file.open("w", encoding="utf-8") as f:
+                            for doc in raw_docs:
                                 json.dump({
                                     "content": doc.content,
                                     "metadata": doc.metadata
-                                }, f, indent=2, ensure_ascii=False)
+                                }, f, ensure_ascii=False)
+                                f.write('\n')  # JSONL format: newline after each JSON object
 
                         st.success(f"✅ Extracted and saved {len(raw_docs)} emails to disk!")
-                        st.info(f"📁 **Saved to:** `{raw_dir.relative_to(project_path)}`")
+                        st.info(f"📁 **Saved to:** `{email_file.relative_to(project_path)}`")
+                        st.info(f"💡 **Format:** JSONL (one email per line, similar to MBOX format)")
 
                         # Show statistics
                         with st.expander("📊 Email Statistics"):

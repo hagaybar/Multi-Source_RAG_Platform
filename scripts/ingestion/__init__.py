@@ -14,26 +14,59 @@ def load_txt(filepath: str) -> tuple[str, dict]:
     return content, {}
 
 
-# Loader for Outlook-extracted emails saved as JSON
-def load_outlook_eml_json(filepath: str) -> tuple[str, dict]:
+# Loader for Outlook-extracted emails saved as JSONL
+def load_outlook_eml_json(filepath: str) -> list[tuple[str, dict]]:
     """
-    Load Outlook emails that were extracted and saved as JSON files.
+    Load Outlook emails from JSONL file (one email per line).
 
-    Expected JSON format:
-    {
-        "content": "email body text",
-        "metadata": {"subject": "...", "sender": "...", ...}
-    }
+    This follows the MBOX pattern: one file contains multiple emails.
+
+    Expected JSONL format (one JSON object per line):
+    {"content": "email body 1", "metadata": {...}}
+    {"content": "email body 2", "metadata": {...}}
+    {"content": "email body 3", "metadata": {...}}
+
+    Returns:
+        List of (content, metadata) tuples, one per email
+
+    Example:
+        >>> emails = load_outlook_eml_json("emails.outlook_eml")
+        >>> len(emails)  # Number of emails in file
+        150
+        >>> content, meta = emails[0]
+        >>> meta["subject"]
+        'Meeting notes'
     """
     import json
+    emails = []
+
     with open(filepath, 'r', encoding='utf-8') as f:
-        data = json.load(f)
+        for i, line in enumerate(f):
+            line = line.strip()
+            if not line:  # Skip empty lines
+                continue
 
-    # Return content and metadata from JSON
-    content = data.get("content", "")
-    metadata = data.get("metadata", {})
+            try:
+                data = json.loads(line)
+                content = data.get("content", "")
+                metadata = data.get("metadata", {})
 
-    return content, metadata
+                # Ensure doc_type is set (required for chunking)
+                if "doc_type" not in metadata:
+                    metadata["doc_type"] = "outlook_eml"
+
+                # Add message index for tracking
+                metadata["message_index"] = i
+
+                if content.strip():  # Only add non-empty emails
+                    emails.append((content, metadata))
+
+            except json.JSONDecodeError as e:
+                # Log error but continue processing other emails
+                print(f"[WARN] Failed to parse line {i+1} in {filepath}: {e}")
+                continue
+
+    return emails
 
 
 LOADER_REGISTRY = {
