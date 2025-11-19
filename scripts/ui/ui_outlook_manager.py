@@ -75,42 +75,52 @@ def render_outlook_connection_test():
     if st.button("Test Connection", key="test_outlook_connection"):
         with st.spinner("Connecting to Outlook..."):
             try:
-                # Create a test config
-                test_config = OutlookConfig(
-                    account_name="",  # Will list all accounts
-                    folder_path="Inbox",
-                    days_back=1
-                )
+                import pythoncom
 
-                connector = OutlookConnector(test_config)
-                outlook = connector.connect_to_outlook()
+                # Initialize COM for this thread
+                pythoncom.CoInitialize()
 
-                st.success("✅ Successfully connected to Outlook!")
-
-                # List available accounts
-                st.markdown("### Available Accounts")
-                accounts = []
                 try:
-                    for i in range(outlook.Folders.Count):
-                        folder = outlook.Folders.Item(i + 1)
-                        accounts.append(folder.Name)
-                        st.write(f"- {folder.Name}")
-                except Exception as e:
-                    st.error(f"Could not list accounts: {e}")
+                    # Create a test config
+                    test_config = OutlookConfig(
+                        account_name="",  # Will list all accounts
+                        folder_path="Inbox",
+                        days_back=1
+                    )
 
-                if accounts:
-                    st.session_state.outlook_accounts = accounts
+                    connector = OutlookConnector(test_config)
+                    outlook = connector.connect_to_outlook()
 
-                # List folders in first account (if available)
-                if accounts:
-                    st.markdown(f"### Folders in '{accounts[0]}'")
+                    st.success("✅ Successfully connected to Outlook!")
+
+                    # List available accounts
+                    st.markdown("### Available Accounts")
+                    accounts = []
                     try:
-                        account_folder = outlook.Folders.Item(1)
-                        for i in range(account_folder.Folders.Count):
-                            folder = account_folder.Folders.Item(i + 1)
+                        for i in range(outlook.Folders.Count):
+                            folder = outlook.Folders.Item(i + 1)
+                            accounts.append(folder.Name)
                             st.write(f"- {folder.Name}")
                     except Exception as e:
-                        st.warning(f"Could not list folders: {e}")
+                        st.error(f"Could not list accounts: {e}")
+
+                    if accounts:
+                        st.session_state.outlook_accounts = accounts
+
+                    # List folders in first account (if available)
+                    if accounts:
+                        st.markdown(f"### Folders in '{accounts[0]}'")
+                        try:
+                            account_folder = outlook.Folders.Item(1)
+                            for i in range(account_folder.Folders.Count):
+                                folder = account_folder.Folders.Item(i + 1)
+                                st.write(f"- {folder.Name}")
+                        except Exception as e:
+                            st.warning(f"Could not list folders: {e}")
+
+                finally:
+                    # Always cleanup COM
+                    pythoncom.CoUninitialize()
 
             except Exception as e:
                 st.error(f"❌ Connection failed: {e}")
@@ -322,6 +332,7 @@ def render_outlook_email_preview(project_path: Path):
         if st.button("🔍 Preview Emails", key="preview_outlook_emails"):
             with st.spinner("Fetching emails from Outlook..."):
                 try:
+                    # Note: extract_emails() already handles COM initialization internally
                     # Create Outlook config
                     outlook_config = OutlookConfig(
                         account_name=outlook_config_dict["account_name"],
