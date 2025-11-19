@@ -14,6 +14,28 @@ def load_txt(filepath: str) -> tuple[str, dict]:
     return content, {}
 
 
+# Loader for Outlook-extracted emails saved as JSON
+def load_outlook_eml_json(filepath: str) -> tuple[str, dict]:
+    """
+    Load Outlook emails that were extracted and saved as JSON files.
+
+    Expected JSON format:
+    {
+        "content": "email body text",
+        "metadata": {"subject": "...", "sender": "...", ...}
+    }
+    """
+    import json
+    with open(filepath, 'r', encoding='utf-8') as f:
+        data = json.load(f)
+
+    # Return content and metadata from JSON
+    content = data.get("content", "")
+    metadata = data.get("metadata", {})
+
+    return content, metadata
+
+
 LOADER_REGISTRY = {
     ".txt": load_txt,  # Added .txt loader
     ".csv": load_csv,
@@ -24,4 +46,5 @@ LOADER_REGISTRY = {
     ".pdf": load_pdf,  # Add this mapping
     ".pptx": PptxIngestor,  # Map .pptx to PptxIngestor class
     ".xlsx": XlsxIngestor,  # Map .xlsx to XlsxIngestor class
+    ".outlook_eml": load_outlook_eml_json,  # Outlook emails saved as JSON
 }

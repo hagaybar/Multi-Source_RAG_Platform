@@ -434,10 +434,22 @@ def render_outlook_ingestion_controls(project_path: Path):
                     raw_docs = ingestion_mgr.ingest_outlook(outlook_config)
 
                     if raw_docs:
-                        st.success(f"✅ Extracted {len(raw_docs)} emails from Outlook!")
+                        # Save emails to disk as .outlook_eml files (JSON format)
+                        import json
+                        raw_dir = project_path / "input" / "raw" / "outlook_eml"
+                        raw_dir.mkdir(parents=True, exist_ok=True)
 
-                        # Store in session state for pipeline use
-                        st.session_state.outlook_raw_docs = raw_docs
+                        # Save each email as a separate .outlook_eml file
+                        for i, doc in enumerate(raw_docs, start=1):
+                            email_file = raw_dir / f"email_{i:03d}.outlook_eml"
+                            with email_file.open("w", encoding="utf-8") as f:
+                                json.dump({
+                                    "content": doc.content,
+                                    "metadata": doc.metadata
+                                }, f, indent=2, ensure_ascii=False)
+
+                        st.success(f"✅ Extracted and saved {len(raw_docs)} emails to disk!")
+                        st.info(f"📁 **Saved to:** `{raw_dir.relative_to(project_path)}`")
 
                         # Show statistics
                         with st.expander("📊 Email Statistics"):
@@ -454,8 +466,10 @@ def render_outlook_ingestion_controls(project_path: Path):
                                 st.write(f"- {sender}: {count} emails")
 
                         st.info(
-                            "📋 **Next Step:** Go to 'Pipeline Actions' tab to chunk, "
-                            "embed, and index these emails."
+                            "📋 **Next Steps:** Go to 'Pipeline Actions' tab and run:\n"
+                            "1. **ingest** - Load emails from disk\n"
+                            "2. **chunk** - Break emails into chunks\n"
+                            "3. **embed** - Create embeddings and index"
                         )
                     else:
                         st.warning("⚠️ No emails were extracted. Check your settings and try again.")
