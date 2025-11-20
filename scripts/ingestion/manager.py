@@ -108,11 +108,11 @@ class IngestionManager:
 
     def ingest_outlook(self, outlook_config: "OutlookConfig") -> List[RawDoc]:
         """
-        Ingest emails from Microsoft Outlook using OutlookConnector.
+        Ingest emails from Microsoft Outlook using environment-aware connector.
 
-        This method connects to a local Outlook client and extracts emails
-        from a specified folder, converting them to RawDoc format for the
-        ingestion pipeline.
+        This method connects to a local Outlook client (Windows) or uses the
+        WSL helper (WSL) to extract emails from a specified folder, converting
+        them to RawDoc format for the ingestion pipeline.
 
         Args:
             outlook_config: OutlookConfig object with connection parameters
@@ -132,7 +132,7 @@ class IngestionManager:
             >>> raw_docs = manager.ingest_outlook(config)
             >>> print(f"Ingested {len(raw_docs)} emails")
         """
-        from scripts.connectors.outlook_connector import OutlookConnector
+        from scripts.connectors.outlook_wsl_client import get_outlook_connector
 
         self.logger.info(
             f"Starting Outlook ingestion from {outlook_config.account_name}/{outlook_config.folder_path}",
@@ -151,8 +151,8 @@ class IngestionManager:
         )
 
         try:
-            # Create connector and extract emails
-            connector = OutlookConnector(outlook_config)
+            # Create connector using factory (auto-detects WSL vs Windows)
+            connector = get_outlook_connector(outlook_config)
             email_tuples = connector.extract_emails()
 
             # Convert to RawDoc objects
@@ -180,7 +180,7 @@ class IngestionManager:
 
         except ImportError as e:
             self.logger.error(
-                f"Failed to import OutlookConnector: {e}. Is pywin32 installed?",
+                f"Failed to import Outlook connector: {e}. Check pywin32 (Windows) or helper setup (WSL).",
                 extra={"run_id": self.run_id} if self.run_id else {},
                 exc_info=True
             )

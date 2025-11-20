@@ -16,6 +16,12 @@ import yaml
 from scripts.core.project_manager import ProjectManager
 from scripts.utils.logger import LoggerManager
 
+# Import WSL helper utilities
+from scripts.connectors.outlook_helper_utils import (
+    OutlookHelperValidator,
+    is_outlook_helper_ready
+)
+
 # Check if running on Windows
 IS_WINDOWS = sys.platform == "win32"
 
@@ -30,16 +36,69 @@ except ImportError:
 
 def render_outlook_requirements_check():
     """
-    Display requirements check for Outlook integration.
+    Display requirements check for Outlook integration with WSL support.
 
-    Shows warnings if:
-    - Not running on Windows
-    - pywin32 not installed
-    - Outlook not installed/configured
+    Handles three environments:
+    - WSL: Shows wizard if helper not ready, validation status if ready
+    - Windows: Checks pywin32 availability
+    - Other: Shows error message
+
+    Returns:
+        bool: True if requirements met, False otherwise
     """
+    # Check if running in WSL
+    if OutlookHelperValidator.is_wsl():
+        # WSL mode - check helper readiness
+        if not is_outlook_helper_ready():
+            st.warning("⚠️ Outlook Helper Not Configured")
+            st.info(
+                "📋 **You're running in WSL.** To use Outlook integration, "
+                "you need to set up the Windows helper script."
+            )
+
+            # Show wizard
+            from scripts.ui.ui_outlook_setup_wizard import render_outlook_setup_wizard
+            render_outlook_setup_wizard()
+            return False
+
+        # Helper is ready - show validation status
+        st.success("✅ Outlook Helper Configured")
+
+        with st.expander("🔍 Helper Validation Status"):
+            validator = OutlookHelperValidator()
+            result = validator.validate_all()
+
+            if result.passed:
+                st.success("✅ All validation checks passed")
+            else:
+                st.warning("⚠️ Some validation issues found")
+
+            # Show info
+            if result.info:
+                st.markdown("**Configuration:**")
+                for key, value in result.info.items():
+                    st.markdown(f"- **{key}**: {value}")
+
+            # Show warnings
+            if result.warnings:
+                st.markdown("**Warnings:**")
+                for warning in result.warnings:
+                    st.warning(warning)
+
+            # Show errors
+            if result.errors:
+                st.markdown("**Errors:**")
+                for error in result.errors:
+                    st.error(error)
+                st.info("💡 Re-run the setup wizard to fix issues")
+                return False
+
+        return True
+
+    # Native Windows mode
     if not IS_WINDOWS:
         st.error(
-            "⚠️ Outlook integration requires Windows OS. "
+            "⚠️ Outlook integration requires Windows OS or WSL. "
             "You are currently running on: " + sys.platform
         )
         st.info(
@@ -65,30 +124,42 @@ def render_outlook_requirements_check():
 def render_outlook_connection_test():
     """
     Test Outlook connection and show available accounts/folders.
+
+    Note: Caller should ensure render_outlook_requirements_check() passes first.
     """
     st.subheader("🔌 Test Outlook Connection")
-
-    # Check requirements first
-    if not render_outlook_requirements_check():
-        return
 
     if st.button("Test Connection", key="test_outlook_connection"):
         with st.spinner("Connecting to Outlook..."):
             try:
+                # Create a test config
+                test_config = OutlookConfig(
+                    account_name="",  # Will list all accounts
+                    folder_path="Inbox",
+                    days_back=1
+                )
+
+                # Use factory function for environment-aware connector selection
+                from scripts.connectors.outlook_wsl_client import get_outlook_connector
+                connector = get_outlook_connector(test_config)
+
+                # For WSL, we can't list accounts/folders interactively
+                # Show different message
+                if OutlookHelperValidator.is_wsl():
+                    st.info("ℹ️ **WSL Mode**: Connection test via helper not supported.")
+                    st.info(
+                        "💡 The helper validates during setup wizard. "
+                        "Use the 'Preview Emails' feature below to test extraction."
+                    )
+                    return
+
+                # Native Windows mode - can connect directly
                 import pythoncom
 
                 # Initialize COM for this thread
                 pythoncom.CoInitialize()
 
                 try:
-                    # Create a test config
-                    test_config = OutlookConfig(
-                        account_name="",  # Will list all accounts
-                        folder_path="Inbox",
-                        days_back=1
-                    )
-
-                    connector = OutlookConnector(test_config)
                     outlook = connector.connect_to_outlook()
 
                     st.success("✅ Successfully connected to Outlook!")
@@ -135,12 +206,10 @@ def render_outlook_connection_test():
 def render_outlook_project_creation():
     """
     Render form for creating an Outlook-based project.
+
+    Note: Caller should ensure render_outlook_requirements_check() passes first.
     """
     st.subheader("📧 Create Outlook Project")
-
-    # Check requirements first
-    if not render_outlook_requirements_check():
-        return
 
     with st.form("outlook_project_form"):
         st.markdown("### Project Details")
@@ -303,14 +372,12 @@ def render_outlook_email_preview(project_path: Path):
     """
     Preview emails that would be extracted with current settings.
 
+    Note: Caller should ensure render_outlook_requirements_check() passes first.
+
     Args:
         project_path: Path to the project directory
     """
     st.subheader("📬 Email Preview")
-
-    # Check requirements first
-    if not render_outlook_requirements_check():
-        return
 
     # Load Outlook config from project
     config_path = project_path / "config.yml"
@@ -341,7 +408,9 @@ def render_outlook_email_preview(project_path: Path):
                         max_emails=10  # Preview only first 10
                     )
 
-                    connector = OutlookConnector(outlook_config)
+                    # Use factory function for environment-aware connector selection
+                    from scripts.connectors.outlook_wsl_client import get_outlook_connector
+                    connector = get_outlook_connector(outlook_config)
                     emails = connector.extract_emails()
 
                     if not emails:
@@ -376,14 +445,12 @@ def render_outlook_ingestion_controls(project_path: Path):
     """
     Controls for manually triggering Outlook email ingestion.
 
+    Note: Caller should ensure render_outlook_requirements_check() passes first.
+
     Args:
         project_path: Path to the project directory
     """
     st.subheader("⚙️ Outlook Ingestion")
-
-    # Check requirements first
-    if not render_outlook_requirements_check():
-        return
 
     # Load Outlook config
     config_path = project_path / "config.yml"

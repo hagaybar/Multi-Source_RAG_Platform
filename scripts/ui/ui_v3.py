@@ -19,6 +19,7 @@ from scripts.ui.ui_project_manager import (
 )
 from scripts.ui.ui_custom_pipeline import render_custom_pipeline_tab
 from scripts.ui.ui_outlook_manager import (
+    render_outlook_requirements_check,
     render_outlook_connection_test,
     render_outlook_project_creation,
     render_outlook_email_preview,
@@ -145,6 +146,11 @@ elif section == "Outlook Integration":
         "section": "outlook_integration",
         "ui_component": "outlook_tab"
     })
+
+    # Single requirements check at the top - if it fails, show wizard and stop
+    if not render_outlook_requirements_check():
+        # Requirements not met (wizard is shown), don't render anything else
+        st.stop()
 
     # Check if there's a selected project
     base_path = Path("data/projects")
