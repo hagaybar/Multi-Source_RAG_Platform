@@ -9,6 +9,34 @@ eml:
   max_tokens: 300
   overlap: 5
 
+# Outlook MSG files (individual messages)
+msg:
+  strategy: by_email_block
+  min_tokens: 20
+  max_tokens: 300
+  overlap: 5
+
+# MBOX files (bulk email archives)
+mbox:
+  strategy: by_email_block
+  min_tokens: 20
+  max_tokens: 300
+  overlap: 5
+
+# PST files (Outlook archives)
+pst:
+  strategy: by_email_block
+  min_tokens: 20
+  max_tokens: 300
+  overlap: 5
+
+# Outlook emails from local client (via OutlookConnector)
+outlook_eml:
+  strategy: by_email_block
+  min_tokens: 20
+  max_tokens: 300
+  overlap: 5
+
 # === Word Processing ===
 docx:
   strategy: by_paragraph

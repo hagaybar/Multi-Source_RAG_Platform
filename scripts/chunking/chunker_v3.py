@@ -24,6 +24,22 @@ from scripts.utils.logger import LoggerManager
 # Default logger - will be used if no project-specific logger is provided
 _default_logger = LoggerManager.get_logger("chunker")
 
+# Cached spaCy model (loaded once, reused for all email chunking)
+_nlp_model = None
+
+def _get_spacy_model():
+    """Load and cache spaCy model for email sentence splitting."""
+    global _nlp_model
+    if _nlp_model is None:
+        try:
+            _nlp_model = spacy.load("en_core_web_sm")
+        except OSError as e:
+            raise OSError(
+                "spaCy model 'en_core_web_sm' not found. "
+                "Please install it with: python -m spacy download en_core_web_sm"
+            ) from e
+    return _nlp_model
+
 # --- regex patterns ----------------------------------------------------------
 PARA_REGEX = re.compile(r"\n\s*\n")  # one or more blank lines
 EMAIL_BLOCK_REGEX = re.compile(
@@ -145,7 +161,7 @@ def split(text: str, meta: dict, clean_options: dict = None, logger=None) -> lis
         items = [row.strip() for row in cleaned_text.strip().split('\n') if row.strip()]
     elif rule.strategy in ("by_email_block", "eml"):
         # Split the cleaned text into sentences using spaCy
-        nlp = spacy.load("en_core_web_sm")
+        nlp = _get_spacy_model()  # Use cached model
         doc = nlp(cleaned_text)
         items = [sent.text.strip() for sent in doc.sents if sent.text.strip()]
     else:

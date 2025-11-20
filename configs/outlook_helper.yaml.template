@@ -1,0 +1,46 @@
+# Outlook Helper Configuration Template for WSL
+# Copy this file to outlook_helper.yaml and configure your paths
+
+version: "1.0"
+
+windows:
+  # Path to Windows Python executable (visible from WSL as /mnt/c/...)
+  # Leave empty for auto-detection
+  python_path: ""
+
+  # Path to helper script (single centralized location)
+  helper_script: "C:/MultiSourceRAG/tools/win_com_server.py"
+
+  # Helper script version (must match deployed script)
+  helper_version: "1.0"
+
+execution:
+  # Timeout for helper execution (seconds)
+  timeout: 60
+
+  # Maximum retries on transient failures
+  max_retries: 3
+
+  # Retry backoff (seconds)
+  retry_backoff: 2
+
+validation:
+  # Auto-detect common Python paths
+  auto_detect: true
+
+  # Required packages in Windows Python
+  required_packages:
+    - pywin32
+
+logging:
+  # Enable debug logging for helper calls
+  debug: false
+
+  # Log helper stderr to file
+  log_stderr: true
+
+# Status (managed by system, do not edit manually)
+status:
+  last_validated: null
+  validation_passed: false
+  validation_errors: []

@@ -223,7 +223,7 @@ def render_raw_data_upload(project_path: Path):
     """
     st.subheader("Upload Raw Data")
 
-    file_types = ["pdf", "docx", "pptx", "xlsx", "txt", "eml", "html"]
+    file_types = ["pdf", "docx", "pptx", "xlsx", "txt", "eml", "msg", "mbox", "html"]
 
     uploaded_files = st.file_uploader(
         "Upload files",
