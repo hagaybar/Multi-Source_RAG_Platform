@@ -1,0 +1,275 @@
+"""
+Windows Outlook Email Extraction Helper
+
+This script runs on Windows and extracts emails from Outlook via COM.
+It is called from WSL via subprocess and outputs JSON to stdout.
+
+Version: 1.0
+Compatible with: Python 3.11+
+"""
+
+import sys
+import io
+import json
+import argparse
+from datetime import datetime, timedelta
+from typing import List, Dict, Tuple
+
+# Version (must match outlook_helper.yaml)
+HELPER_VERSION = "1.0"
+
+try:
+    import win32com.client
+    import pythoncom
+    COM_AVAILABLE = True
+except ImportError:
+    COM_AVAILABLE = False
+
+
+def log_error(message: str, **kwargs):
+    """Log error to stderr in JSON format."""
+    log_entry = {
+        "level": "ERROR",
+        "message": message,
+        "timestamp": datetime.now().isoformat(),
+        **kwargs
+    }
+    print(json.dumps(log_entry), file=sys.stderr)
+
+
+def log_info(message: str, **kwargs):
+    """Log info to stderr in JSON format."""
+    log_entry = {
+        "level": "INFO",
+        "message": message,
+        "timestamp": datetime.now().isoformat(),
+        **kwargs
+    }
+    print(json.dumps(log_entry), file=sys.stderr)
+
+
+def self_test() -> bool:
+    """
+    Run self-test to validate environment.
+
+    Returns:
+        True if all checks passed
+    """
+    # Check COM availability
+    if not COM_AVAILABLE:
+        log_error("pywin32 not installed")
+        return False
+
+    log_info("pywin32: OK")
+
+    # Try to initialize COM
+    try:
+        pythoncom.CoInitializeEx(0)
+        log_info("COM initialization: OK")
+    except Exception as e:
+        log_error(f"COM initialization failed: {e}")
+        return False
+    finally:
+        try:
+            pythoncom.CoUninitialize()
+        except:
+            pass
+
+    # Try to connect to Outlook
+    try:
+        pythoncom.CoInitializeEx(0)
+        outlook = win32com.client.Dispatch("Outlook.Application").GetNamespace("MAPI")
+        log_info("Outlook connection: OK")
+
+        # Check for accounts
+        account_count = outlook.Folders.Count
+        log_info(f"Outlook accounts found: {account_count}")
+
+        pythoncom.CoUninitialize()
+    except Exception as e:
+        log_error(f"Outlook connection failed: {e}")
+        try:
+            pythoncom.CoUninitialize()
+        except:
+            pass
+        return False
+
+    log_info("Self-test: PASSED")
+    return True
+
+
+def extract_emails(
+    account_name: str,
+    folder_path: str,
+    days_back: int,
+    max_emails: int = None
+) -> List[Tuple[str, Dict]]:
+    """
+    Extract emails from Outlook.
+
+    Args:
+        account_name: Outlook account name
+        folder_path: Folder path (e.g., "Inbox" or "Inbox > Work")
+        days_back: Number of days to look back
+        max_emails: Maximum emails to extract (None = no limit)
+
+    Returns:
+        List of (body_text, metadata) tuples
+    """
+    if not COM_AVAILABLE:
+        raise ImportError("pywin32 not installed")
+
+    pythoncom.CoInitializeEx(0)
+
+    try:
+        # Connect to Outlook
+        outlook = win32com.client.Dispatch("Outlook.Application").GetNamespace("MAPI")
+        log_info(f"Connected to Outlook")
+
+        # Find account
+        account_folder = None
+        for i in range(outlook.Folders.Count):
+            folder = outlook.Folders.Item(i + 1)
+            if folder.Name == account_name:
+                account_folder = folder
+                break
+
+        if account_folder is None:
+            raise ValueError(f"Account '{account_name}' not found")
+
+        log_info(f"Found account: {account_name}")
+
+        # Navigate to target folder
+        folder_parts = [part.strip() for part in folder_path.split(">")]
+
+        # Start with Inbox
+        try:
+            current_folder = account_folder.Folders["Inbox"]
+        except Exception as e:
+            log_error(f"Cannot access Inbox: {e}")
+            raise ValueError(f"Cannot access Inbox for account '{account_name}'")
+
+        # Navigate to subfolder if specified
+        if len(folder_parts) > 1 or (len(folder_parts) == 1 and folder_parts[0].lower() != "inbox"):
+            start_index = 1 if folder_parts[0].lower() == "inbox" else 0
+            for folder_name in folder_parts[start_index:]:
+                try:
+                    current_folder = current_folder.Folders[folder_name]
+                except Exception as e:
+                    log_error(f"Cannot access folder '{folder_name}': {e}")
+                    raise ValueError(f"Folder '{folder_name}' not found in path '{folder_path}'")
+
+        log_info(f"Found folder: {folder_path}")
+
+        # Get all items
+        items = current_folder.Items
+
+        # Sort by received time (most recent first)
+        items.Sort("[ReceivedTime]", True)
+
+        # Filter by date
+        cutoff = datetime.now() - timedelta(days=days_back)
+        filter_str = f"[ReceivedTime] >= '{cutoff.strftime('%m/%d/%Y %H:%M %p')}'"
+
+        try:
+            filtered_items = items.Restrict(filter_str)
+        except Exception as e:
+            log_error(f"Failed to filter emails: {e}")
+            # Fallback: process all items
+            filtered_items = items
+
+        log_info(f"Found {len(filtered_items)} emails in date range")
+
+        # Extract emails
+        emails = []
+        processed = 0
+
+        for item in filtered_items:
+            # Check if it's a mail item (Class = 43 is olMailItem)
+            if hasattr(item, "Class") and item.Class == 43:
+                try:
+                    # Get email body
+                    body = item.Body if hasattr(item, "Body") else ""
+
+                    # Build metadata
+                    metadata = {
+                        "source_filepath": f"outlook://{account_name}/{folder_path}",
+                        "content_type": "email",
+                        "doc_type": "outlook_eml",
+                        "subject": item.Subject if hasattr(item, "Subject") else "",
+                        "sender": item.SenderEmailAddress if hasattr(item, "SenderEmailAddress") else "",
+                        "sender_name": item.SenderName if hasattr(item, "SenderName") else "",
+                        "date": item.ReceivedTime.strftime("%Y-%m-%d %H:%M:%S") if hasattr(item, "ReceivedTime") and item.ReceivedTime else "",
+                        "message_id": item.EntryID if hasattr(item, "EntryID") else "",
+                    }
+
+                    emails.append((body, metadata))
+                    processed += 1
+
+                    if max_emails and processed >= max_emails:
+                        log_info(f"Reached max_emails limit: {max_emails}")
+                        break
+
+                except Exception as e:
+                    log_error(f"Failed to process email: {e}")
+                    continue
+
+        log_info(f"Extracted {len(emails)} emails")
+        return emails
+
+    finally:
+        pythoncom.CoUninitialize()
+
+
+def main():
+    # Force UTF-8 encoding for stdout to handle international characters
+    # Windows defaults to 'charmap' which can't encode many Unicode characters
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+
+    parser = argparse.ArgumentParser(description="Windows Outlook Email Extraction Helper")
+    parser.add_argument("--version", action="version", version=f"%(prog)s {HELPER_VERSION}")
+    parser.add_argument("--self-test", action="store_true", help="Run self-test and exit")
+    parser.add_argument("--account", help="Outlook account name")
+    parser.add_argument("--folder", help="Folder path (e.g., 'Inbox' or 'Inbox > Work')")
+    parser.add_argument("--days", type=int, default=30, help="Days to look back (default: 30)")
+    parser.add_argument("--max-emails", type=int, help="Maximum emails to extract")
+
+    args = parser.parse_args()
+
+    # Self-test mode
+    if args.self_test:
+        success = self_test()
+        sys.exit(0 if success else 1)
+
+    # Extraction mode
+    if not args.account or not args.folder:
+        print("Error: --account and --folder are required", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        emails = extract_emails(
+            account_name=args.account,
+            folder_path=args.folder,
+            days_back=args.days,
+            max_emails=args.max_emails
+        )
+
+        # Output JSON to stdout
+        output = []
+        for body, metadata in emails:
+            output.append({
+                "content": body,
+                "metadata": metadata
+            })
+
+        print(json.dumps(output, ensure_ascii=False))
+        sys.exit(0)
+
+    except Exception as e:
+        log_error(f"Extraction failed: {e}")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
