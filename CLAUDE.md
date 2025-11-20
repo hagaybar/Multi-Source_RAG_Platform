@@ -945,3 +945,18 @@ logger.info("Items processed", extra={
 - Review recent commits for implementation examples
 - Check `docs/` directory for feature-specific documentation
 - Analyze existing loaders in `scripts/ingestion/` as templates
+
+---
+
+## Development Workflow
+
+### Setup
+- **Environment**: `poetry install`
+- **Activate**: `poetry shell`
+
+### Testing
+- **Run Tests**: `pytest` (or run specific test scripts if needed)
+
+### Running the App
+- **Streamlit UI**: `streamlit run scripts/ui/ui.py`
+- **CLI App**: `python -m app.cli` (or `poetry run app`)
