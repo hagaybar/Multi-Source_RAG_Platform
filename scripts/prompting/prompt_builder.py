@@ -74,6 +74,47 @@ User Question:
 Answer:
 """
 
+
+EMAIL_PROMPT_TEMPLATE = """
+You are an intelligent email assistant helping users search and understand their email communications.
+
+Your job is to answer questions based ONLY on the provided email conversations below.
+If the emails do not contain the answer, clearly state that you cannot find the information in the available emails.
+
+When answering:
+
+1. **Identify relevant emails** by subject, sender, and date
+2. **Summarize key points** from the email content
+3. **Maintain context** - consider the conversation flow if multiple emails are related (e.g., "Re:" threads)
+4. **Extract actionable information** - look for deadlines, action items, decisions, and concerns
+5. **Cite sources** using email metadata in this format: [Sender Name, "Subject", Date]
+
+If the user asks about:
+- **"Recent" or "latest"**: Prioritize emails by date (most recent first) and explicitly mention dates
+- **Specific person**: Focus on emails from/to that sender and clearly attribute statements to them
+- **Action items or tasks**: Look for tasks, deadlines, words like "TODO", "please", "need to", "action item"
+- **Decisions**: Look for conclusive statements containing "decided", "agreed", "approved", "final decision"
+- **Concerns or issues**: Look for questions, blockers, warnings, or negative sentiment
+
+Always attribute statements to the specific sender and include the date for temporal context.
+If the user's question is in Hebrew, answer in Hebrew. Otherwise, answer in the same language as the question.
+
+---
+
+Email Conversations:
+{context_str}
+
+---
+
+User Question:
+{query_str}
+
+---
+
+Answer:
+"""
+
+
 class PromptBuilder:
     """
     Builds prompts for the LMM by combining a user query with retrieved
@@ -103,6 +144,7 @@ class PromptBuilder:
             # Fall back to global logging
             self.logger = LoggerManager.get_logger("prompt", run_id=run_id)
         self.template = template or DEFAULT_PROMPT_TEMPLATE_V2
+        self.email_template = EMAIL_PROMPT_TEMPLATE
         if ("{context_str}" not in self.template or
                 "{query_str}" not in self.template):
             self.logger.error(
@@ -133,6 +175,8 @@ class PromptBuilder:
             context_str = "No context provided."
         else:
             context_items = []
+            email_chunk_count = 0
+
             for i, chunk in enumerate(context_chunks):
                 # Handle doc_id safely
                 source_id = (
@@ -154,12 +198,34 @@ class PromptBuilder:
                     )
                     continue
 
-                context_item = f"Source ID: [{source_id_str}]\nContent: {text}"
+                # Check if this is an email chunk
+                doc_type = chunk.meta.get("doc_type", "")
+                if doc_type == "outlook_eml":
+                    email_chunk_count += 1
 
-                # Add other relevant metadata if available, e.g., page number
-                page_number = chunk.meta.get('page_number')
-                if page_number:
-                    context_item += f"\nPage: {page_number}"
+                    # Email-specific formatting with metadata
+                    subject = chunk.meta.get("subject", "No Subject")
+                    sender_name = chunk.meta.get("sender_name", "Unknown Sender")
+                    sender_email = chunk.meta.get("sender", "")
+                    date = chunk.meta.get("date", "Unknown Date")
+
+                    # Format email context with rich metadata
+                    sender_info = f"{sender_name} <{sender_email}>" if sender_email else sender_name
+                    context_item = f"""Email #{i+1}:
+From: {sender_info}
+Subject: {subject}
+Date: {date}
+
+Content:
+{text}"""
+                else:
+                    # Document-specific formatting (existing logic)
+                    context_item = f"Source ID: [{source_id_str}]\nContent: {text}"
+
+                    # Add other relevant metadata if available, e.g., page number
+                    page_number = chunk.meta.get('page_number')
+                    if page_number:
+                        context_item += f"\nPage: {page_number}"
 
                 context_items.append(context_item)
             context_str = "\n\n---\n\n".join(context_items)
@@ -169,9 +235,26 @@ class PromptBuilder:
             extra={"run_id": self.run_id, "query_length": len(query), "context_chunk_count": len(context_chunks)} if self.run_id else {"query_length": len(query), "context_chunk_count": len(context_chunks)}
         )
 
+        # Auto-select template based on content type
+        # Use email template if more than 50% of chunks are emails
+        if context_chunks and email_chunk_count > len(context_chunks) / 2:
+            selected_template = self.email_template
+            template_type = "email"
+            self.logger.debug(
+                f"Using email template ({email_chunk_count}/{len(context_chunks)} chunks are emails)",
+                extra={"run_id": self.run_id, "template": "email", "email_chunks": email_chunk_count, "total_chunks": len(context_chunks)} if self.run_id else {"template": "email", "email_chunks": email_chunk_count, "total_chunks": len(context_chunks)}
+            )
+        else:
+            selected_template = self.template
+            template_type = "default"
+            self.logger.debug(
+                f"Using default template ({email_chunk_count}/{len(context_chunks) if context_chunks else 0} chunks are emails)",
+                extra={"run_id": self.run_id, "template": "default", "email_chunks": email_chunk_count, "total_chunks": len(context_chunks) if context_chunks else 0} if self.run_id else {"template": "default", "email_chunks": email_chunk_count, "total_chunks": len(context_chunks) if context_chunks else 0}
+            )
+
         # Replace placeholders in the template
         try:
-            final_prompt = self.template.format(
+            final_prompt = selected_template.format(
                 context_str=context_str, query_str=query
             )
         except KeyError as e:
