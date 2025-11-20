@@ -239,14 +239,12 @@ Content:
         # Use email template if more than 50% of chunks are emails
         if context_chunks and email_chunk_count > len(context_chunks) / 2:
             selected_template = self.email_template
-            template_type = "email"
             self.logger.debug(
                 f"Using email template ({email_chunk_count}/{len(context_chunks)} chunks are emails)",
                 extra={"run_id": self.run_id, "template": "email", "email_chunks": email_chunk_count, "total_chunks": len(context_chunks)} if self.run_id else {"template": "email", "email_chunks": email_chunk_count, "total_chunks": len(context_chunks)}
             )
         else:
             selected_template = self.template
-            template_type = "default"
             self.logger.debug(
                 f"Using default template ({email_chunk_count}/{len(context_chunks) if context_chunks else 0} chunks are emails)",
                 extra={"run_id": self.run_id, "template": "default", "email_chunks": email_chunk_count, "total_chunks": len(context_chunks) if context_chunks else 0} if self.run_id else {"template": "default", "email_chunks": email_chunk_count, "total_chunks": len(context_chunks) if context_chunks else 0}
