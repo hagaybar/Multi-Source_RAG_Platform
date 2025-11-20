@@ -1,0 +1,20 @@
+version: '1.0'
+windows:
+  python_path: C:/Users/hagaybar/AppData/Local/Programs/Python/Python312/python.exe
+  helper_script: C:/MultiSourceRAG/tools/win_com_server.py
+  helper_version: '1.0'
+execution:
+  timeout: 60
+  max_retries: 3
+  retry_backoff: 2
+validation:
+  auto_detect: true
+  required_packages:
+  - pywin32
+logging:
+  debug: false
+  log_stderr: true
+status:
+  last_validated: '2025-11-20T10:35:24.107536'
+  validation_passed: true
+  validation_errors: []
