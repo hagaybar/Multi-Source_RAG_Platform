@@ -11,6 +11,7 @@ Tests:
 """
 
 import pytest
+from unittest.mock import Mock, patch
 from scripts.agents.email_intent_detector import EmailIntentDetector
 
 
@@ -371,6 +372,214 @@ class TestIntegrationScenarios:
                 else:
                     assert result["metadata"].get(key) == value, \
                         f"Metadata mismatch for {key} in {case['query']}"
+
+
+class TestLLMFallback:
+    """Test LLM fallback functionality for low-confidence queries."""
+
+    def test_llm_fallback_disabled_by_default(self):
+        """Test that LLM fallback is disabled by default."""
+        detector = EmailIntentDetector(use_llm_fallback=False)
+
+        # Low-confidence query
+        query = "Tell me about something"
+        result = detector.detect(query)
+
+        # Should use pattern-based detection only
+        assert result["detection_method"] == "pattern"
+        assert "pattern_confidence" not in result
+
+    def test_llm_fallback_enabled(self):
+        """Test that LLM fallback is triggered for low-confidence queries."""
+        detector = EmailIntentDetector(use_llm_fallback=True, llm_confidence_threshold=0.6)
+
+        # Mock LLM response
+        mock_llm_result = {
+            "intent": "sender_query",
+            "confidence": 0.85,
+            "metadata": {"sender": "Alice"}
+        }
+
+        with patch('scripts.agents.email_intent_detector.OpenAICompleter') as mock_completer_class:
+            mock_completer = Mock()
+            mock_completer.get_completion.return_value = f"""{{
+  "intent": "{mock_llm_result['intent']}",
+  "confidence": {mock_llm_result['confidence']},
+  "metadata": {{"sender": "{mock_llm_result['metadata']['sender']}"}}
+}}"""
+            mock_completer_class.return_value = mock_completer
+
+            # Low-confidence query (factual_lookup has 0.3 confidence)
+            query = "Tell me about something"
+            result = detector.detect(query)
+
+            # Should have called LLM
+            mock_completer.get_completion.assert_called_once()
+
+            # Should use LLM result (higher confidence)
+            assert result["detection_method"] == "llm"
+            assert result["primary_intent"] == "sender_query"
+            assert result["confidence"] == 0.85
+            assert result["pattern_confidence"] == 0.3  # Original pattern confidence preserved
+
+    def test_llm_fallback_pattern_wins(self):
+        """Test that pattern result is kept when LLM has lower confidence."""
+        detector = EmailIntentDetector(use_llm_fallback=True, llm_confidence_threshold=0.9)
+
+        # Mock LLM response with LOW confidence
+        mock_llm_result = {
+            "intent": "factual_lookup",
+            "confidence": 0.4,
+            "metadata": {}
+        }
+
+        with patch('scripts.agents.email_intent_detector.OpenAICompleter') as mock_completer_class:
+            mock_completer = Mock()
+            mock_completer.get_completion.return_value = f"""{{
+  "intent": "{mock_llm_result['intent']}",
+  "confidence": {mock_llm_result['confidence']},
+  "metadata": {{}}
+}}"""
+            mock_completer_class.return_value = mock_completer
+
+            # Medium-confidence query (0.8 confidence, below 0.9 threshold)
+            query = "Recent updates"  # temporal_query with 0.8 confidence
+            result = detector.detect(query)
+
+            # Should have called LLM (pattern confidence 0.8 < threshold 0.9)
+            # But should keep pattern result (0.8 > LLM's 0.4)
+            assert result["detection_method"] == "pattern_with_llm_check"
+            assert result["primary_intent"] == "temporal_query"
+
+    def test_llm_fallback_failure_handling(self):
+        """Test that LLM fallback failures are handled gracefully."""
+        detector = EmailIntentDetector(use_llm_fallback=True, llm_confidence_threshold=0.6)
+
+        with patch('scripts.agents.email_intent_detector.OpenAICompleter') as mock_completer_class:
+            mock_completer = Mock()
+            # Simulate LLM error
+            mock_completer.get_completion.return_value = "[ERROR] API error"
+            mock_completer_class.return_value = mock_completer
+
+            # Low-confidence query
+            query = "Tell me about something"
+            result = detector.detect(query)
+
+            # Should fall back to pattern result
+            assert result["detection_method"] == "pattern_llm_failed"
+            assert result["primary_intent"] == "factual_lookup"
+            assert result["confidence"] == 0.3
+
+    def test_llm_fallback_json_parsing_error(self):
+        """Test handling of invalid JSON from LLM."""
+        detector = EmailIntentDetector(use_llm_fallback=True, llm_confidence_threshold=0.6)
+
+        with patch('scripts.agents.email_intent_detector.OpenAICompleter') as mock_completer_class:
+            mock_completer = Mock()
+            # Return invalid JSON
+            mock_completer.get_completion.return_value = "Not valid JSON at all"
+            mock_completer_class.return_value = mock_completer
+
+            # Low-confidence query
+            query = "Tell me about something"
+            result = detector.detect(query)
+
+            # Should fall back to pattern result
+            assert result["detection_method"] == "pattern_llm_failed"
+            assert result["primary_intent"] == "factual_lookup"
+
+    def test_llm_fallback_markdown_json(self):
+        """Test handling of markdown-wrapped JSON from LLM."""
+        detector = EmailIntentDetector(use_llm_fallback=True, llm_confidence_threshold=0.6)
+
+        with patch('scripts.agents.email_intent_detector.OpenAICompleter') as mock_completer_class:
+            mock_completer = Mock()
+            # Return JSON wrapped in markdown code block
+            mock_completer.get_completion.return_value = """```json
+{
+  "intent": "sender_query",
+  "confidence": 0.9,
+  "metadata": {"sender": "Bob"}
+}
+```"""
+            mock_completer_class.return_value = mock_completer
+
+            # Low-confidence query
+            query = "Tell me about something"
+            result = detector.detect(query)
+
+            # Should parse successfully
+            assert result["detection_method"] == "llm"
+            assert result["primary_intent"] == "sender_query"
+            assert result["confidence"] == 0.9
+            assert result["metadata"]["sender"] == "Bob"
+
+    def test_llm_confidence_threshold_respected(self):
+        """Test that LLM is only called when confidence < threshold."""
+        detector = EmailIntentDetector(use_llm_fallback=True, llm_confidence_threshold=0.8)
+
+        with patch('scripts.agents.email_intent_detector.OpenAICompleter') as mock_completer_class:
+            mock_completer = Mock()
+            mock_completer_class.return_value = mock_completer
+
+            # High-confidence query (sender_query typically has 0.8+ confidence)
+            query = "What did Alice say about the budget?"
+            result = detector.detect(query)
+
+            # Should NOT call LLM (confidence >= threshold)
+            mock_completer.get_completion.assert_not_called()
+            assert result["detection_method"] == "pattern"
+
+    def test_llm_metadata_extraction(self):
+        """Test that LLM correctly extracts metadata."""
+        detector = EmailIntentDetector(use_llm_fallback=True, llm_confidence_threshold=0.6)
+
+        with patch('scripts.agents.email_intent_detector.OpenAICompleter') as mock_completer_class:
+            mock_completer = Mock()
+            mock_completer.get_completion.return_value = """{
+  "intent": "sender_query",
+  "confidence": 0.95,
+  "metadata": {
+    "sender": "Alice",
+    "time_range": "last_week",
+    "topic_keywords": ["budget", "approval"]
+  }
+}"""
+            mock_completer_class.return_value = mock_completer
+
+            # Ambiguous query
+            query = "Tell me what Alice mentioned"
+            result = detector.detect(query)
+
+            # Should extract all metadata
+            assert result["metadata"]["sender"] == "Alice"
+            assert result["metadata"]["time_range"] == "last_week"
+            assert "budget" in result["metadata"]["topic_keywords"]
+            assert "approval" in result["metadata"]["topic_keywords"]
+
+    def test_llm_empty_metadata_cleaned(self):
+        """Test that empty metadata values are removed."""
+        detector = EmailIntentDetector(use_llm_fallback=True, llm_confidence_threshold=0.6)
+
+        with patch('scripts.agents.email_intent_detector.OpenAICompleter') as mock_completer_class:
+            mock_completer = Mock()
+            # LLM returns empty metadata values
+            mock_completer.get_completion.return_value = """{
+  "intent": "factual_lookup",
+  "confidence": 0.7,
+  "metadata": {
+    "sender": "",
+    "time_range": "",
+    "topic_keywords": []
+  }
+}"""
+            mock_completer_class.return_value = mock_completer
+
+            query = "Tell me about something"
+            result = detector.detect(query)
+
+            # Empty values should be cleaned
+            assert result["metadata"] == {}
 
 
 if __name__ == "__main__":

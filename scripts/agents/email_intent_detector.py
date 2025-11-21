@@ -3,11 +3,15 @@ Email Intent Detector
 
 Detects user intent from email queries with multi-aspect support.
 Extracts metadata like sender names, time ranges, and topics.
+
+Enhanced with optional LLM fallback for ambiguous queries.
 """
 
 import re
-from typing import Dict, List
+import json
+from typing import Dict, List, Optional
 from scripts.utils.logger import LoggerManager
+from scripts.api_clients.openai.completer import OpenAICompleter
 
 logger = LoggerManager.get_logger("email_intent_detector")
 
@@ -24,10 +28,22 @@ class EmailIntentDetector:
     - decision_tracking: Find decisions made
     - aggregation_query: Analysis queries (most/least/top/compare)
     - factual_lookup: Standard information retrieval
+
+    Features:
+    - Pattern-based detection (fast, free)
+    - Optional LLM fallback for ambiguous queries (accurate, costs ~$0.001/query)
     """
 
-    def __init__(self):
-        """Initialize intent patterns."""
+    def __init__(self, use_llm_fallback: bool = False, llm_confidence_threshold: float = 0.6):
+        """
+        Initialize intent detector.
+
+        Args:
+            use_llm_fallback: Enable LLM fallback for low-confidence detections
+            llm_confidence_threshold: Confidence threshold for using LLM (default: 0.6)
+        """
+        self.use_llm_fallback = use_llm_fallback
+        self.llm_confidence_threshold = llm_confidence_threshold
         self.patterns = {
             "thread_summary": [
                 r"summarize.*(?:discussion|thread|conversation|exchange)",
@@ -141,10 +157,42 @@ class EmailIntentDetector:
             "confidence": confidence,
             "metadata": metadata,
             "secondary_signals": secondary,
+            "detection_method": "pattern"
         }
 
+        # LLM fallback for low-confidence detections
+        if self.use_llm_fallback and confidence < self.llm_confidence_threshold:
+            logger.info(
+                f"Low confidence ({confidence:.2f}), using LLM fallback",
+                extra={"query": query, "pattern_confidence": confidence}
+            )
+
+            try:
+                llm_result = self._llm_based_detection(query)
+
+                # Use LLM result if it has higher confidence
+                if llm_result["confidence"] > confidence:
+                    logger.info(
+                        f"LLM result used: {llm_result['primary_intent']} "
+                        f"(confidence: {llm_result['confidence']:.2f})",
+                        extra={"llm_result": llm_result}
+                    )
+                    result = llm_result
+                    result["detection_method"] = "llm"
+                    result["pattern_confidence"] = confidence  # Keep original for comparison
+                else:
+                    result["detection_method"] = "pattern_with_llm_check"
+
+            except Exception as e:
+                logger.warning(
+                    f"LLM fallback failed: {e}",
+                    extra={"error": str(e)}
+                )
+                result["detection_method"] = "pattern_llm_failed"
+
         logger.debug(
-            f"Intent detected: {primary_intent} (confidence: {confidence:.2f})",
+            f"Intent detected: {result['primary_intent']} (confidence: {result['confidence']:.2f}, "
+            f"method: {result['detection_method']})",
             extra={"intent_result": result}
         )
 
@@ -251,6 +299,113 @@ class EmailIntentDetector:
             metadata["topic_keywords"] = topic_keywords
 
         return metadata
+
+    def _llm_based_detection(self, query: str) -> Dict:
+        """
+        Use LLM to classify intent for ambiguous queries.
+
+        Args:
+            query: User query string
+
+        Returns:
+            {
+                "primary_intent": "sender_query",
+                "confidence": 0.85,
+                "metadata": {...},
+                "secondary_signals": []
+            }
+        """
+        # Create classification prompt
+        prompt = f"""Classify this email query into one of these intents:
+
+- thread_summary: User wants to summarize an email thread or discussion
+- sender_query: User wants emails from a specific person
+- temporal_query: User wants recent/time-based emails
+- action_items: User wants tasks or deadlines
+- decision_tracking: User wants decisions made
+- aggregation_query: User wants analysis (most/least/top/compare/count)
+- factual_lookup: User wants specific information
+
+Also extract metadata:
+- sender: name if mentioned (capitalize first letter, e.g., "Alice")
+- time_range: if temporal words used (use: yesterday, today, last_week, last_month, this_week, this_month, or recent)
+- topic_keywords: important topic words (lowercase, no common words)
+
+Query: "{query}"
+
+Return ONLY valid JSON (no markdown, no backticks):
+{{
+  "intent": "...",
+  "confidence": 0.0-1.0,
+  "metadata": {{"sender": "...", "time_range": "...", "topic_keywords": [...]}}
+}}"""
+
+        try:
+            # Initialize LLM completer
+            completer = OpenAICompleter(model_name="gpt-3.5-turbo")
+
+            # Get completion
+            response = completer.get_completion(
+                prompt=prompt,
+                temperature=0.3,  # Lower temperature for more consistent classification
+                max_tokens=200
+            )
+
+            logger.debug(f"LLM response: {response}", extra={"llm_response": response})
+
+            # Handle error responses
+            if response.startswith("[ERROR]"):
+                raise ValueError(f"LLM returned error: {response}")
+
+            # Parse JSON response
+            # Remove markdown code blocks if present
+            response_clean = response.strip()
+            if response_clean.startswith("```"):
+                # Extract JSON from markdown code block
+                lines = response_clean.split("\n")
+                json_lines = [line for line in lines if line and not line.startswith("```")]
+                response_clean = "\n".join(json_lines)
+
+            result_data = json.loads(response_clean)
+
+            # Validate required fields
+            if "intent" not in result_data or "confidence" not in result_data:
+                raise ValueError(f"LLM response missing required fields: {result_data}")
+
+            # Convert to standard format
+            metadata = result_data.get("metadata", {})
+
+            # Clean metadata - remove empty values
+            metadata = {k: v for k, v in metadata.items() if v}
+
+            result = {
+                "primary_intent": result_data["intent"],
+                "confidence": float(result_data["confidence"]),
+                "metadata": metadata,
+                "secondary_signals": []  # LLM doesn't detect secondary signals
+            }
+
+            logger.info(
+                f"LLM classified query as {result['primary_intent']} "
+                f"(confidence: {result['confidence']:.2f})",
+                extra={"llm_result": result}
+            )
+
+            return result
+
+        except json.JSONDecodeError as e:
+            logger.error(
+                f"Failed to parse LLM JSON response: {e}",
+                extra={"response": response}
+            )
+            raise ValueError(f"Invalid JSON from LLM: {e}")
+
+        except Exception as e:
+            logger.error(
+                f"LLM-based detection failed: {e}",
+                extra={"error": str(e)}
+            )
+            raise
 
 
 if __name__ == "__main__":

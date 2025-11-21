@@ -20,6 +20,7 @@ from scripts.api_clients.openai.completer import OpenAICompleter
 # 🧠 Agents
 # ─────────────────────────────────────────────
 from scripts.agents.image_insight_agent import ImageInsightAgent
+from scripts.agents.email_orchestrator import EmailOrchestratorAgent
 
 # ─────────────────────────────────────────────
 # 🧩 Chunking System
@@ -166,6 +167,35 @@ class PipelineRunner:
     def get_model(self) -> str:
         """Get the currently set LLM model."""
         return self._model_name
+
+    def _is_email_project(self) -> bool:
+        """
+        Detect if this is an email project by checking:
+        1. Outlook configuration (sources.outlook.enabled = true)
+        2. Top-level outlook config (outlook.enabled = true)
+        3. Document types (mbox, msg, eml in config)
+
+        Returns:
+            True if this is an email project, False otherwise
+        """
+        # Check sources.outlook.enabled
+        sources_config = self.config.get("sources", {})
+        outlook_source = sources_config.get("outlook", {})
+        if outlook_source.get("enabled", False):
+            return True
+
+        # Check top-level outlook config
+        outlook_config = self.config.get("outlook", {})
+        if outlook_config.get("enabled", False):
+            return True
+
+        # Check doc_types for email formats
+        doc_types = self.config.get("doc_types", [])
+        email_types = {"mbox", "msg", "eml", "email"}
+        if any(dt in email_types for dt in doc_types):
+            return True
+
+        return False
 
     # ─────────────────────────────────────────────
     # Error Policy Helpers
@@ -676,36 +706,88 @@ class PipelineRunner:
         self, query: str, top_k: int = 5, strategy: str = "late_fusion", **kwargs
     ) -> Iterator[str]:
         """
-        Retrieves top-k results (text + image-aware) using late fusion.
+        Retrieves top-k results using either EmailOrchestratorAgent (for email projects)
+        or RetrievalManager (for non-email projects).
         Stores results in self.retrieved_chunks for step_ask() or inspection.
         """
         yield "🔍 Starting retrieval..."
         self._ensure_run_logging()
         t0 = perf_counter()
-        self.run_log.info(
-            "retrieval.start",
-            extra={"extra_data": {"query": query, "top_k": top_k, "strategy": strategy}},
-        )
 
         if not query:
             yield "❌ No query provided."
             return
 
+        # Detect if this is an email project
+        is_email = self._is_email_project()
+
         try:
-            retriever = RetrievalManager(self.project)
-            yield f"🔢 Strategy: {strategy}, Top-K: {top_k}"
-            chunks = retriever.retrieve(query=query, top_k=top_k, strategy=strategy)
+            if is_email:
+                # Use EmailOrchestratorAgent for email projects (Phases 1-4)
+                yield "📧 Detected email project - using EmailOrchestratorAgent..."
+                orchestrator = EmailOrchestratorAgent(self.project)
+
+                # Enable LLM fallback for intent detection if configured
+                llm_fallback = self.config.get("email", {}).get("llm_intent_fallback", True)
+                if llm_fallback:
+                    from scripts.agents.email_intent_detector import EmailIntentDetector
+                    orchestrator.intent_detector = EmailIntentDetector(
+                        use_llm_fallback=True,
+                        llm_confidence_threshold=0.6
+                    )
+                    yield "🧠 LLM-enhanced intent detection enabled"
+
+                # Retrieve using orchestrator (pass None to enable auto top_k adjustment)
+                result = orchestrator.retrieve(query, top_k=None, max_tokens=kwargs.get("max_tokens", 2000))
+
+                # Log orchestrator-specific metadata
+                self.run_log.info(
+                    "retrieval.start",
+                    extra={"extra_data": {
+                        "query": query,
+                        "top_k": top_k,
+                        "strategy": result["strategy"]["primary"],
+                        "intent": result["intent"]["primary_intent"],
+                        "confidence": result["intent"]["confidence"],
+                        "detection_method": result["intent"].get("detection_method", "pattern")
+                    }},
+                )
+
+                # Extract chunks from orchestrator result
+                chunks = result["chunks"]
+                actual_top_k = result["metadata"].get("chunk_count", len(chunks))
+
+                # Show intent detection results
+                yield f"🎯 Detected intent: {result['intent']['primary_intent']} (confidence: {result['intent']['confidence']:.2f})"
+                yield f"🔢 Strategy: {result['strategy']['primary']}, Retrieved: {actual_top_k} chunks (auto-adjusted from intent)"
+
+            else:
+                # Use standard RetrievalManager for non-email projects
+                yield f"📄 Using standard retrieval (strategy: {strategy})..."
+                self.run_log.info(
+                    "retrieval.start",
+                    extra={"extra_data": {"query": query, "top_k": top_k, "strategy": strategy}},
+                )
+
+                retriever = RetrievalManager(self.project)
+                yield f"🔢 Strategy: {strategy}, Top-K: {top_k}"
+                chunks = retriever.retrieve(query=query, top_k=top_k, strategy=strategy)
 
             # Persist artifacts with the SAME run logger
             run_logger = self._run_logger  # type: ignore[assignment]
+
+            # Determine strategy name for logging
+            strategy_name = result["strategy"]["primary"] if is_email and "result" in locals() else strategy
+
             try:
                 run_logger.log_metadata(  # type: ignore[union-attr]
                     {
                         "query": query,
                         "top_k": top_k,
-                        "strategy": strategy,
+                        "strategy": strategy_name,
                         "timestamp": datetime.now().isoformat(),
                         "pipeline_steps": ["retrieve"],
+                        **({"intent": result["intent"], "orchestrator": "email"} if is_email and "result" in locals() else {})
                     }
                 )
                 run_logger.log_chunks(chunks)  # type: ignore[union-attr]
