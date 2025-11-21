@@ -813,21 +813,40 @@ class PipelineRunner:
 
             for i, chunk in enumerate(chunks, 1):
                 doc_id = getattr(chunk, "doc_id", "N/A")
-                retriever_name = chunk.meta.get("_retriever", "unknown")
-                score = chunk.meta.get("similarity", 0)
+                retriever_name = chunk.meta.get("_retriever", "standard")
+
+                # Get score (similarity or relevance)
+                score = chunk.meta.get("similarity", chunk.meta.get("relevance", 0))
 
                 if hasattr(chunk, "description") and not hasattr(chunk, "text"):
                     # ImageChunk
                     preview = chunk.description.strip()[:80].replace("\n", " ")
                     chunk_type = "🖼️ Image"
+                    yield (
+                        f"[{i}] {chunk_type} | Retriever: {retriever_name} | "
+                        f"Score: {score:.3f} | doc_id: {doc_id}"
+                    )
                 else:
                     preview = chunk.text.strip()[:80].replace("\n", " ")
                     chunk_type = chunk.meta.get("doc_type", "text")
 
-                yield (
-                    f"[{i}] {chunk_type} | From: {retriever_name} | "
-                    f"Score: {score:.3f} | doc_id: {doc_id}"
-                )
+                    # For email chunks, show sender name
+                    if chunk_type in ["outlook_eml", "msg", "eml", "mbox"]:
+                        sender = chunk.meta.get("sender_name", chunk.meta.get("sender", "Unknown"))
+                        date = chunk.meta.get("date", "")
+                        date_display = f" | Date: {date.split()[0]}" if date else ""
+
+                        yield (
+                            f"[{i}] 📧 Email | From: {sender}{date_display} | "
+                            f"Retriever: {retriever_name} | Score: {score:.3f}"
+                        )
+                    else:
+                        # Non-email chunks
+                        yield (
+                            f"[{i}] {chunk_type} | Retriever: {retriever_name} | "
+                            f"Score: {score:.3f} | doc_id: {doc_id}"
+                        )
+
                 yield f"     → {preview}"
 
         except Exception as e:

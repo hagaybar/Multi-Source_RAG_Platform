@@ -50,7 +50,8 @@ class ThreadRetriever:
         query: str,
         top_threads: int = 2,
         doc_type: str = "outlook_eml",
-        seed_k: int = 10
+        seed_k: int = 10,
+        days_back: Optional[int] = None
     ) -> List[Chunk]:
         """
         Retrieve complete email threads.
@@ -60,6 +61,7 @@ class ThreadRetriever:
             top_threads: Number of complete threads to return (default: 2)
             doc_type: Document type to search (default: outlook_eml)
             seed_k: Number of seed emails to retrieve initially (default: 10)
+            days_back: Optional filter - only include emails from last N days
 
         Returns:
             List of chunks representing complete threads, chronologically sorted
@@ -102,6 +104,22 @@ class ThreadRetriever:
 
         # Stage 5: Sort chronologically
         complete_threads.sort(key=lambda c: c.meta.get("date", ""))
+
+        # Stage 6: Apply temporal filter if specified
+        if days_back is not None:
+            from datetime import datetime, timedelta
+            cutoff_date = (datetime.now() - timedelta(days=days_back)).strftime("%Y-%m-%d")
+
+            before_filter = len(complete_threads)
+            complete_threads = [
+                c for c in complete_threads
+                if c.meta.get("date", "").split()[0] >= cutoff_date
+            ]
+
+            self.logger.info(
+                f"Temporal filter: {before_filter} → {len(complete_threads)} emails (last {days_back} days, cutoff: {cutoff_date})",
+                extra={"run_id": self.run_id, "days_back": days_back, "before": before_filter, "after": len(complete_threads)} if self.run_id else {}
+            )
 
         self.logger.info(
             f"Retrieved {len(complete_threads)} emails from {len(scored_threads[:top_threads])} threads",
@@ -330,13 +348,16 @@ class ThreadRetriever:
         for meta in all_metadata:
             subject = meta.get("subject", "")
             if self._normalize_subject(subject) == thread_id:
-                # Reconstruct Chunk object
+                # Reconstruct Chunk object with retriever tagging
                 chunk = Chunk(
                     id=meta.get("id", f"chunk-{len(thread_chunks)}"),
                     doc_id=meta.get("doc_id", "unknown"),
                     text=meta.get("text", ""),
                     token_count=meta.get("token_count", 0),
-                    meta=meta
+                    meta={
+                        **meta,
+                        "_retriever": "thread"  # Tag with retriever name
+                    }
                 )
                 thread_chunks.append(chunk)
 

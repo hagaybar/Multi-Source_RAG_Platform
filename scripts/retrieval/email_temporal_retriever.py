@@ -106,6 +106,10 @@ class TemporalRetriever:
         # Sort by date (most recent first)
         filtered.sort(key=lambda c: c.meta.get("date", ""), reverse=True)
 
+        # Add retriever tagging
+        for chunk in filtered:
+            chunk.meta["_retriever"] = "temporal"
+
         self.logger.info(
             f"Retrieved {len(filtered)} emails from {time_range['start']} to {time_range['end']}",
             extra={"run_id": self.run_id, "result_count": len(filtered)} if self.run_id else {}

@@ -219,7 +219,12 @@ class EmailOrchestratorAgent:
         # Execute retrieval based on strategy type
         if primary_strategy == "thread_retrieval":
             # Thread retrieval uses different parameters
-            chunks = retriever.retrieve(query, top_threads=2)
+            # Extract days_back from temporal_constraint if present
+            days_back = None
+            if "temporal_constraint" in params:
+                days_back = params["temporal_constraint"].get("days_back")
+
+            chunks = retriever.retrieve(query, top_threads=2, days_back=days_back)
 
         elif primary_strategy == "multi_aspect":
             # Multi-aspect uses intent directly

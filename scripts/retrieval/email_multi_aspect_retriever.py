@@ -187,6 +187,12 @@ class MultiAspectRetriever:
             # Keep relevance order from semantic search
             pass
 
+        # Add retriever tagging
+        for chunk in chunks:
+            # Only tag if not already tagged by a specialized retriever
+            if "_retriever" not in chunk.meta:
+                chunk.meta["_retriever"] = "multi-aspect"
+
         self.logger.info(
             f"Retrieved {len(chunks)} emails with multi-aspect filtering",
             extra={"run_id": self.run_id, "result_count": len(chunks)} if self.run_id else {}

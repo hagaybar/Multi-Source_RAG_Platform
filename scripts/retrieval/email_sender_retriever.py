@@ -105,6 +105,10 @@ class SenderRetriever:
         # Take top K (already sorted by relevance from semantic search)
         result = filtered[:top_k]
 
+        # Add retriever tagging
+        for chunk in result:
+            chunk.meta["_retriever"] = "sender"
+
         self.logger.info(
             f"Retrieved {len(result)} emails from sender '{sender_name}'",
             extra={"run_id": self.run_id, "result_count": len(result)} if self.run_id else {}

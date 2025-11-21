@@ -152,6 +152,14 @@ class EmailIntentDetector:
             if score > 0.3 and intent != primary_intent
         ]
 
+        # Add temporal_query to secondary if temporal constraint was extracted
+        if "temporal_constraint" in metadata and "temporal_query" not in secondary and primary_intent != "temporal_query":
+            secondary.append("temporal_query")
+
+        # Add sender_query to secondary if sender was extracted
+        if "sender" in metadata and "sender_query" not in secondary and primary_intent != "sender_query":
+            secondary.append("sender_query")
+
         result = {
             "primary_intent": primary_intent,
             "confidence": confidence,
@@ -263,7 +271,7 @@ class EmailIntentDetector:
                     metadata["sender"] = sender.capitalize()
                     break
 
-        # Extract time range
+        # Extract time range and temporal constraints
         time_patterns = {
             "yesterday": r"\byesterday\b",
             "today": r"\btoday\b",
@@ -274,10 +282,62 @@ class EmailIntentDetector:
             "recent": r"\b(?:recent|latest|newest)\b",
         }
 
-        for time_range, pattern in time_patterns.items():
-            if re.search(pattern, query, re.I):
-                metadata["time_range"] = time_range
-                break
+        # Extract relative time expressions (e.g., "past 4 weeks", "last 3 months", "past four weeks")
+        # Map word numbers to digits
+        word_to_num = {
+            "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
+            "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
+            "twelve": 12, "twenty": 20, "thirty": 30
+        }
+
+        relative_time_pattern = r"(?:past|last)\s+(\d+|one|two|three|four|five|six|seven|eight|nine|ten|twelve|twenty|thirty)\s+(day|days|week|weeks|month|months|year|years)"
+        relative_match = re.search(relative_time_pattern, query, re.I)
+
+        if relative_match:
+            value_str = relative_match.group(1).lower()
+            value = word_to_num.get(value_str, int(value_str)) if value_str.isdigit() else word_to_num.get(value_str, 1)
+            unit = relative_match.group(2).lower().rstrip('s')  # Normalize to singular
+
+            # Convert to days for consistency
+            days_map = {
+                "day": 1,
+                "week": 7,
+                "month": 30,  # Approximation
+                "year": 365
+            }
+            days_back = value * days_map.get(unit, 1)
+
+            metadata["time_range"] = f"past_{value}_{unit}s"
+            metadata["temporal_constraint"] = {
+                "type": "relative",
+                "value": value,
+                "unit": unit,
+                "days_back": days_back
+            }
+        else:
+            # Try simple keyword patterns
+            for time_range, pattern in time_patterns.items():
+                if re.search(pattern, query, re.I):
+                    metadata["time_range"] = time_range
+
+                    # Add structured temporal constraint for known patterns
+                    days_map = {
+                        "yesterday": 1,
+                        "today": 0,
+                        "last_week": 7,
+                        "last_month": 30,
+                        "this_week": 7,
+                        "this_month": 30,
+                        "recent": 7  # Default to 1 week for "recent"
+                    }
+
+                    if time_range in days_map:
+                        metadata["temporal_constraint"] = {
+                            "type": "keyword",
+                            "keyword": time_range,
+                            "days_back": days_map[time_range]
+                        }
+                    break
 
         # Extract topic keywords (simple approach: nouns/important words)
         # Remove common words
