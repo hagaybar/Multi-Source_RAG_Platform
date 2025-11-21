@@ -10,10 +10,10 @@ This project is a sophisticated, local-first Retrieval-Augmented Generation (RAG
 
 ## ✨ Key Features
 
-*   **Multi-Source Ingestion**: Supports a wide variety of file formats, including PDF, DOCX, PPTX, CSV, and TXT. *Please note that XLSX and EML ingestion are still under development.*
+*   **Multi-Source Ingestion**: Supports a wide variety of file formats, including PDF, DOCX, PPTX, CSV, and TXT. *EML support is currently experimental. XLSX ingestion is under development.*
 *   **Configurable Chunking**: Employs a rule-based chunking system that allows for different strategies (e.g., by paragraph, by slide) to be applied to different document types, ensuring optimal data segmentation.
 *   **Flexible Embedding Models**: Easily switch between local, open-source embedding models (via `sentence-transformers`) and powerful API-based models like OpenAI's.
-*   **Multi-Modal Retrieval**: Capable of retrieving both text and image-based information. The system can generate textual descriptions for images, making visual content fully searchable.
+*   **Multi-Modal Retrieval**: Capable of retrieving both text and image-based information. The system includes an `enrich-images` command to generate textual descriptions for images using an agentic workflow, making visual content fully searchable.
 *   **Advanced Retrieval Strategies**: Uses a late-fusion approach to combine results from multiple sources, ensuring comprehensive and relevant context for every query.
 *   **Streamlit UI**: An intuitive user interface for creating and managing projects, uploading documents, and editing configurations.
 *   **Command-Line Interface**: A powerful CLI for interacting with the platform, allowing you to ingest documents, generate embeddings, and ask questions directly from your terminal.
@@ -70,10 +70,31 @@ The CLI provides a powerful way to interact with the platform. Here is a typical
     ```bash
     python -m app.cli embed /path/to/your/project
     ```
+    *Optional: Use `--with-image-index` to run image enrichment and indexing immediately after embedding.*
 
-3.  **Ask a Question:**
+3.  **Enrich and Index Images (Standalone):**
+    If you didn't use `--with-image-index` during embedding, you can run these steps separately:
+    ```bash
+    python -m app.cli enrich-images /path/to/your/project --doc-type pptx
+    python -m app.cli index-images /path/to/your/project --doc-type pptx
+    ```
+
+4.  **Retrieve Context:**
+    Test the retrieval system directly:
+    ```bash
+    python -m app.cli retrieve /path/to/your/project "Your search query" --top-k 5
+    ```
+
+5.  **Ask a Question:**
+    Generate an answer using the RAG pipeline:
     ```bash
     python -m app.cli ask /path/to/your/project "Your question here"
+    ```
+
+6.  **View Configuration:**
+    Check the current project configuration:
+    ```bash
+    python -m app.cli config /path/to/your/project
     ```
 
 For more detailed information on the available commands and their options, please refer to the `app/README.md` file.

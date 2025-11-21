@@ -1,0 +1,19 @@
+# Multi-Source RAG Platform - AI Context Map
+
+## Primary Documentation
+- CLAUDE.md: Source of truth for architecture, style, and commands. READ THIS FIRST.
+
+## Codebase Structure
+- scripts/: Python automation tools, RAG pipeline, and Streamlit UI.
+- app/: CLI application entry point.
+- configs/: Configuration files (chunking rules, etc.).
+- tests/: Pytest suite.
+- docs/: Project documentation (see docs/README.md).
+
+## Key Concepts
+- RAG Pipeline: Ingest -> Chunk -> Embed -> Retrieve -> Ask.
+- UI: Streamlit-based frontend (scripts/ui/).
+
+## Quick Start
+- Setup: `poetry install`
+- Run UI: `streamlit run scripts/ui/ui.py`
