@@ -73,8 +73,17 @@ class CategoryDiscovery:
         # Load embeddings from vector DB
         print("\nLoading embeddings from vector DB...")
         try:
-            from scripts.retrieval.faiss_retriever import FaissRetriever
-            retriever = FaissRetriever(self.project, "outlook_eml")
+            from scripts.retrieval.base import FaissRetriever
+
+            # Get paths for FAISS index
+            index_path = self.project.project_dir / "output" / "embeddings" / "outlook_eml.faiss"
+            metadata_path = self.project.get_metadata_path("outlook_eml")
+
+            if not index_path.exists():
+                print(f"⚠️ FAISS index not found: {index_path}")
+                return chunks
+
+            retriever = FaissRetriever(index_path, metadata_path)
 
             # Get all embeddings
             for i, chunk in enumerate(chunks):
