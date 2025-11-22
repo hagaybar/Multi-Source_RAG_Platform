@@ -23,6 +23,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from scripts.core.project_manager import ProjectManager
 from scripts.chunking.models import Chunk
+from scripts.api_clients.openai.completer import OpenAICompleter
 
 
 class CategoryDiscovery:
@@ -76,7 +77,7 @@ class CategoryDiscovery:
             from scripts.retrieval.base import FaissRetriever
 
             # Get paths for FAISS index
-            index_path = self.project.project_dir / "output" / "embeddings" / "outlook_eml.faiss"
+            index_path = self.project.root_dir / "output" / "faiss" / "outlook_eml.faiss"
             metadata_path = self.project.get_metadata_path("outlook_eml")
 
             if not index_path.exists():
@@ -219,18 +220,89 @@ class CategoryDiscovery:
             "common_body_words": [w for w, _ in common_body[:10]]
         }
 
-    def name_categories(self) -> Dict[int, str]:
-        """Interactive category naming."""
+    def _llm_name_cluster(self, cluster_analysis: Dict, used_names: List[str]) -> str:
+        """Use LLM to name a cluster based on its analysis.
+
+        Args:
+            cluster_analysis: Dict with cluster patterns (from analyze_cluster)
+            used_names: List of already-used category names to avoid duplicates
+
+        Returns:
+            Category name (1-3 words)
+        """
+        # Prepare prompt
+        prompt = f"""Analyze this email cluster and suggest a SHORT, SPECIFIC category name (1-3 words):
+
+Cluster size: {cluster_analysis['size']} emails
+Top subject keywords: {', '.join(cluster_analysis['top_keywords'][:10])}
+Sample email subjects:
+{chr(10).join(f'  - {subj[:100]}' for subj in cluster_analysis['sample_subjects'][:5])}
+
+Common body keywords: {', '.join(cluster_analysis['common_body_words'][:10])}
+
+Suggest ONE category name that captures what these emails are about.
+
+Examples of good category names:
+- Announcements
+- Bug Reports
+- Feature Requests
+- Technical Questions
+- Configuration Help
+- Performance Issues
+- Release Updates
+
+AVOID these already-used names: {', '.join(used_names) if used_names else 'none'}
+
+Return ONLY the category name (1-3 words), nothing else."""
+
+        try:
+            completer = OpenAICompleter(model_name="gpt-3.5-turbo")
+            response = completer.get_completion(
+                prompt=prompt,
+                temperature=0.3,
+                max_tokens=20
+            )
+
+            # Clean response
+            category_name = response.strip().strip('"\'').strip()
+
+            # If it's still a duplicate, append cluster ID
+            if category_name in used_names:
+                category_name = f"{category_name} ({cluster_analysis['cluster_id']})"
+
+            print(f"  [LLM suggested: {category_name}]")
+            return category_name
+
+        except Exception as e:
+            print(f"  ⚠️ LLM naming failed: {e}")
+            # Fallback: use top keyword + cluster ID
+            fallback = f"Category_{cluster_analysis['cluster_id']}"
+            return fallback
+
+    def name_categories(self, interactive: bool = True, use_llm: bool = True) -> Dict[int, str]:
+        """Category naming (interactive or automatic).
+
+        Args:
+            interactive: If True, prompt for category names. If False, use suggestions.
+            use_llm: If True and non-interactive, use LLM to name clusters.
+        """
         print("\n" + "="*60)
         print("CATEGORY NAMING")
         print("="*60)
-        print("\nBased on the cluster analysis, please name each category.")
-        print("Suggested names based on patterns will be shown.\n")
+        if interactive:
+            print("\nBased on the cluster analysis, please name each category.")
+            print("Suggested names based on patterns will be shown.\n")
+        else:
+            if use_llm:
+                print("\nUsing LLM to intelligently name categories...\n")
+            else:
+                print("\nAuto-naming categories based on discovered patterns...\n")
 
         # Get unique cluster IDs
         cluster_ids = sorted(set(c.meta.get("cluster_id") for c in self.email_chunks if "cluster_id" in c.meta))
 
         category_mapping = {}
+        used_names = []  # Track used names to avoid duplicates
 
         for cluster_id in cluster_ids:
             # Suggest name based on keywords
@@ -260,13 +332,37 @@ class CategoryDiscovery:
 
             print(f"\nCluster {cluster_id} ({len(cluster_emails)} emails)")
             print(f"  Top keywords: {', '.join(top_words[:5])}")
-            print(f"  Suggested: {suggestion}")
 
-            name = input(f"  Enter category name [default: {suggestion}]: ").strip()
-            if not name:
+            if interactive:
+                # Interactive mode: show suggestion and prompt
+                print(f"  Suggested: {suggestion}")
+                name = input(f"  Enter category name [default: {suggestion}]: ").strip()
+                if not name:
+                    name = suggestion
+            elif use_llm and not interactive:
+                # Auto + LLM mode: use LLM to name cluster
+                # Create cluster analysis for LLM
+                cluster_analysis = {
+                    "cluster_id": cluster_id,
+                    "size": len(cluster_emails),
+                    "top_keywords": top_words[:15],
+                    "sample_subjects": [c.meta.get("subject", "")[:100] for c in cluster_emails[:5]],
+                    "common_body_words": [w for w, _ in Counter(
+                        [w for c in cluster_emails for w in c.text.lower().split() if len(w) > 4]
+                    ).most_common(10)]
+                }
+                name = self._llm_name_cluster(cluster_analysis, used_names)
+            else:
+                # Auto without LLM: use simple suggestion
+                print(f"  Suggested: {suggestion}")
                 name = suggestion
+                # Check for duplicates
+                if name in used_names:
+                    name = f"{name}_{cluster_id}"
+                    print(f"  [Duplicate detected, renamed to: {name}]")
 
             category_mapping[cluster_id] = name
+            used_names.append(name)
             print(f"  ✓ Named as: '{name}'")
 
         return category_mapping
@@ -352,7 +448,7 @@ class CategoryDiscovery:
         # Prepare data
         data = {
             "discovery_date": datetime.now().isoformat(),
-            "project": str(self.project.project_dir),
+            "project": str(self.project.root_dir),
             "total_emails": len(self.email_chunks),
             "category_mapping": self.category_mapping,
             "rules": self.rules,
@@ -380,8 +476,14 @@ class CategoryDiscovery:
             print(f"  • {category}: {count} emails ({percentage:.1f}%)")
             print(f"    Keywords: {', '.join(keywords)}")
 
-    def run(self, n_categories: int = 7, output_path: Path = None):
-        """Run complete discovery process."""
+    def run(self, n_categories: int = 7, output_path: Path = None, interactive: bool = True):
+        """Run complete discovery process.
+
+        Args:
+            n_categories: Number of categories to discover
+            output_path: Where to save results
+            interactive: If True, prompt user for input. If False, auto-name categories.
+        """
         # Step 1: Load data
         self.email_chunks = self.load_email_chunks()
 
@@ -406,10 +508,11 @@ class CategoryDiscovery:
 
         for cluster_id in cluster_ids:
             self.analyze_cluster(cluster_id)
-            input("\n[Press Enter to continue...]")
+            if interactive:
+                input("\n[Press Enter to continue...]")
 
         # Step 4: Name categories
-        self.category_mapping = self.name_categories()
+        self.category_mapping = self.name_categories(interactive=interactive)
 
         # Step 5: Extract rules
         self.rules = self.extract_rules()
@@ -439,6 +542,8 @@ def main():
                        help="Number of categories to discover")
     parser.add_argument("--output", type=str, default="data/categories/discovered_categories.json",
                        help="Output path for results")
+    parser.add_argument("--auto", action="store_true",
+                       help="Run in non-interactive mode (auto-name categories)")
 
     args = parser.parse_args()
 
@@ -459,7 +564,7 @@ def main():
 
     # Run discovery
     discovery = CategoryDiscovery(project)
-    discovery.run(n_categories=args.n_categories, output_path=Path(args.output))
+    discovery.run(n_categories=args.n_categories, output_path=Path(args.output), interactive=not args.auto)
 
     return 0
 
