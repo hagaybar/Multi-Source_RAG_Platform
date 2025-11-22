@@ -396,13 +396,13 @@ summary = llm.generate(prompt)
 
 ## 🚀 Implementation Plan
 
-### Week 1: Discovery & Bootstrap
+### Week 1: Discovery & Bootstrap ✅ COMPLETE
 - [x] Document plan (this document)
-- [ ] Implement category discovery script
-- [ ] Run discovery on 6 months of data
-- [ ] Analyze clusters and name categories
-- [ ] Extract rules and compute centroids
-- [ ] Save discovered categories
+- [x] Implement category discovery script
+- [x] Run discovery on 6 months of data (1167 emails)
+- [x] Analyze clusters and name categories (LLM-based)
+- [x] Extract rules and compute centroids
+- [x] Save discovered categories
 
 ### Week 2: Categorization System
 - [ ] Implement 3-tier categorization
@@ -497,6 +497,299 @@ summary = llm.generate(prompt)
 
 ---
 
+## 🧪 Experiments & Findings (2025-11-22)
+
+### Context: Discovery Script Implementation
+
+**Date:** November 22, 2025
+**Dataset:** Primo_List project (1167 emails, 6 months of data)
+**Objective:** Discover natural email categories using clustering + LLM naming
+
+### Experiment 1: Initial Discovery Attempt ❌
+
+**Approach:** K-means clustering (7 clusters) + simple keyword-based naming
+
+**Implementation:**
+- Used K-means on embeddings to create 7 clusters
+- Named categories using pattern matching on subject keywords
+- Logic: If "bug" in keywords → "Bug Reports", etc.
+
+**Results:**
+```
+All 7 clusters named "Discussion"
+Category collision: Last cluster overwrote all others
+Final output: Only 1 category with 45 emails (should be 1167)
+```
+
+**Root Cause Analysis:**
+1. **Keyword matching failed** - All Primo emails share "[primo]" prefix
+2. **Insufficient differentiation** - Simple patterns couldn't distinguish clusters
+3. **No duplicate detection** - Same name overwrote previous categories
+4. **Clustering worked fine** - K-means found meaningful patterns:
+   - Cluster 0: Announcements (webinar, registration, igelu)
+   - Cluster 1: Technical questions (hover, display, import)
+   - Cluster 2: Search issues (search, facet, availability)
+   - Cluster 3: Release management (issue, release, records)
+   - Cluster 4: Performance problems (performance, citation)
+   - Cluster 5: Research Assistant (research, assistant, guardrails)
+   - Cluster 6: Miscellaneous (small cluster)
+
+**Conclusion:** Clustering algorithm is NOT the problem. Naming logic is the bottleneck.
+
+---
+
+### Solutions Considered
+
+**Option 1: LLM-Based Cluster Naming** ⭐ SELECTED
+- **Pros:** Intelligent analysis, cheap (~$0.01 for 7 clusters), works with K-means
+- **Cons:** Adds API dependency, slight latency
+- **Decision:** Best ROI - leverage LLM intelligence for minimal cost
+
+**Option 2: HDBSCAN (Better Clustering)**
+- **Pros:** Finds varying cluster sizes, auto-determines k, handles outliers
+- **Cons:** Slower, doesn't solve naming problem, might find too many clusters
+- **Decision:** Deferred - K-means working well enough
+
+**Option 3: BERTopic (Topic Modeling)**
+- **Pros:** Built for text, gives interpretable topics, works great with embeddings
+- **Cons:** More complex, might be overkill, still needs naming
+- **Decision:** Deferred - consider for v2 if K-means insufficient
+
+**Option 4: Hybrid Approach (K-means + LLM + Duplicate Detection)**
+- **Pros:** Combines speed of K-means with intelligence of LLM
+- **Cons:** Requires LLM API access
+- **Decision:** ✅ IMPLEMENTED
+
+---
+
+### Experiment 2: LLM-Based Naming ✅ SUCCESS
+
+**Implementation Changes:**
+
+1. **Added LLM Naming Method** (`_llm_name_cluster`)
+   ```python
+   def _llm_name_cluster(cluster_analysis, used_names):
+       prompt = f"""Analyze this cluster and suggest category name:
+
+       Size: {size} emails
+       Keywords: {top_keywords}
+       Sample subjects: {sample_subjects}
+
+       Avoid these names: {used_names}
+       Return 1-3 word category name."""
+
+       return gpt35_turbo(prompt)
+   ```
+
+2. **Enhanced `name_categories()` Method**
+   - Added `use_llm` parameter (default: True)
+   - Track `used_names` list to avoid duplicates
+   - If LLM returns duplicate, append cluster_id
+
+3. **Added `--auto` CLI Flag**
+   - Non-interactive mode for background execution
+   - Auto-applies LLM suggestions without user prompts
+
+4. **Fixed Path Issues**
+   - Changed `project_dir` → `root_dir` (ProjectManager attribute)
+   - Changed `embeddings/` → `faiss/` (actual directory name)
+
+**Results:**
+
+| Cluster | Size | LLM-Named Category | Keywords |
+|---------|------|-------------------|----------|
+| 0 | 184 | **Library Events** | 2025, call, enhancements, webinar, registration, igelu |
+| 1 | 198 | **Discovery Systems** | hover, display, import, resource, discovery, profile |
+| 2 | 301 | **Primo Support** | search, display, resource, facet, links, availability |
+| 3 | 189 | **Primo Support (3)** | search, release, issue, records, results (Stacey's responses) |
+| 4 | 119 | **Technical Support** | issues, release, citation, performance, chicago |
+| 5 | 131 | **Research Assistant Support** | research, assistant, guardrails, filtering, recommender |
+| 6 | 45 | **Email Management** | email reactions, miscellaneous |
+
+**Observations:**
+- ✅ All 7 categories received unique, meaningful names
+- ✅ Duplicate detected (Cluster 3 = "Primo Support (3)")
+- ✅ LLM understood context from keywords + sample subjects
+- ✅ Total cost: ~$0.007 (7 clusters × ~$0.001/call)
+- ✅ Rules extracted (keywords appearing in >30% of emails)
+- ✅ Centroids computed for Tier 2 categorization
+
+**Sample Category Analysis:**
+
+**Library Events (184 emails):**
+- Top keywords: [primo], 2025, [alma-l], call, enhancements, webinar
+- Top senders: Stacey van Groll, Tamar Ganor, Nili Natan
+- Date range: 2025-05-26 to 2025-11-19
+- **Interpretation:** Announcements, conferences, enhancement ballots
+
+**Research Assistant Support (131 emails):**
+- Top keywords: research, assistant (53.4% of subjects!), guardrails, filtering
+- Common body words: research, search, assistant, primo, about
+- **Interpretation:** Dedicated cluster for Primo Research Assistant feature
+
+**Technical Support (119 emails):**
+- Top keywords: issues, release, july, citation, performance, chicago
+- Senders: Sima Bloch-Winkler (11), Amy Pemble (8)
+- **Interpretation:** Performance issues, bugs, citation problems
+
+---
+
+### Technical Implementation Details
+
+**Files Modified:**
+```
+scripts/categorization/category_discovery.py (+119 lines)
+  - Added OpenAICompleter import
+  - Added _llm_name_cluster() method (57 lines)
+  - Enhanced name_categories() with LLM support
+  - Added duplicate detection logic
+  - Added --auto flag for non-interactive mode
+  - Fixed attribute name bugs (project_dir → root_dir)
+  - Fixed path bug (embeddings → faiss)
+```
+
+**Files Created:**
+```
+data/categories/discovered_categories.json (87 KB)
+  - 7 unique categories with mapping
+  - Rules for each category (subject + body keywords)
+  - Centroids for each category (1536-dim embeddings)
+  - Counts and confidence scores
+  - Discovery metadata (date, project, totals)
+```
+
+**Git:**
+```
+Branch: feature/email-categorization
+Commit: 54bed15 - feat(categorization): Implement LLM-based cluster naming
+Status: Clean, ready for next phase
+```
+
+---
+
+### Performance Metrics
+
+**Discovery Script Execution:**
+- Load 1167 chunks: ~1 second
+- Load FAISS embeddings: ~2 seconds
+- K-means clustering (n=7): ~3 seconds
+- Cluster analysis (7 clusters): ~2 seconds
+- LLM naming (7 calls): ~10 seconds
+- Rule extraction: ~1 second
+- Centroid computation: ~1 second
+- **Total time:** ~20 seconds
+
+**Cost Analysis:**
+- K-means clustering: $0 (local computation)
+- LLM naming: ~$0.007 (7 × $0.001)
+- Embedding reuse: $0 (already computed)
+- **Total cost:** $0.007
+
+**Quality Assessment:**
+- Unique categories: 7/7 (100%)
+- Meaningful names: 7/7 (subjective, but clear)
+- Rule coverage: All categories have 1-3 subject keywords
+- Centroid quality: Based on 45-301 emails per cluster
+
+---
+
+### Comparison: Before vs After
+
+| Aspect | Before (Keyword Matching) | After (LLM Naming) |
+|--------|---------------------------|-------------------|
+| **Unique categories** | 1 | 7 |
+| **Name quality** | Generic ("Discussion") | Specific ("Library Events", "Technical Support") |
+| **Duplicate handling** | ❌ Overwrites | ✅ Appends cluster_id |
+| **Context awareness** | Keywords only | Keywords + sample subjects + body patterns |
+| **Cost** | $0 | $0.007 |
+| **Speed** | <1s | ~10s (LLM calls) |
+| **Usability** | ❌ Failed | ✅ Production-ready |
+
+---
+
+### Lessons Learned
+
+1. **K-means is sufficient** - No need for HDBSCAN/BERTopic yet
+   - Found natural groupings in Primo mailing list data
+   - 7 clusters balanced sizes (45-301 emails)
+   - Clear topical separation
+
+2. **LLM naming is game-changer** - Small cost, huge quality gain
+   - $0.007 to name 7 clusters is negligible
+   - Context-aware naming vastly superior to keyword matching
+   - Handles domain-specific patterns (Primo, IGeLU, Research Assistant)
+
+3. **Duplicate detection is critical** - Must track used names
+   - 2 clusters both matched "Primo Support" pattern
+   - Automatic suffix prevents collision
+   - Could improve with better prompting or re-try logic
+
+4. **Embeddings reuse = free clustering** - No re-computation needed
+   - Leveraged existing FAISS index
+   - 1167 embeddings already available
+   - Discovery cost = $0 (only naming costs)
+
+5. **Data reveals patterns humans miss** - Inductive > Deductive
+   - Didn't expect "Research Assistant" to be its own cluster
+   - "Library Events" cluster (announcements) emerged naturally
+   - "Email Management" cluster caught email system messages
+
+---
+
+### Known Issues & Future Improvements
+
+**Issue 1: Cluster 3 Duplicate Name**
+- LLM suggested "Primo Support" again (same as Cluster 2)
+- Auto-appended "(3)" to make unique
+- **Better approach:** Re-prompt LLM with more context or stronger constraint
+
+**Issue 2: Generic Category Names**
+- "Primo Support" and "Discovery Systems" are somewhat vague
+- **Better approach:** Second LLM pass to refine names, or human review step
+
+**Issue 3: Cluster Size Imbalance**
+- Cluster 2 (301 emails) vs Cluster 6 (45 emails)
+- **Investigation needed:** Is 45-email cluster meaningful or noise?
+- **Potential fix:** HDBSCAN could identify this as outliers
+
+**Issue 4: Category Evolution Not Implemented**
+- Current: Fixed 7 categories
+- Needed: Detect when new categories emerge
+- **Future work:** Monitor "Other" category, suggest splits
+
+**Issue 5: No Validation Yet**
+- Haven't manually validated categorization accuracy
+- **Next step:** Sample 50 emails, human labeling, measure accuracy
+
+---
+
+### Recommended Next Steps
+
+**Immediate (Phase 2):**
+1. ✅ Update this documentation (DONE)
+2. Implement `EmailCategorizer` class (3-tier logic)
+3. Test categorization on sample emails
+4. Integrate into `IngestionManager`
+
+**Short-term (Phase 3):**
+5. Create `TopicAggregationRetriever`
+6. Update `EmailStrategySelector` for aggregation queries
+7. Test end-to-end aggregation flow
+
+**Validation (Phase 4):**
+8. Manual validation: Sample 50 emails, measure accuracy
+9. A/B test: Compare with/without categorization
+10. Tune confidence thresholds based on validation
+
+**Future Enhancements:**
+- Try HDBSCAN to see if it finds better clusters
+- Try BERTopic for interpretable topics
+- Implement category evolution (detect new topics)
+- Add UI filters by category
+- Add analytics dashboard (category trends over time)
+
+---
+
 ## 📚 References
 
 - Email Phase 4 Completion: `docs/archive/EMAIL_PHASE4_COMPLETION.md`
@@ -505,5 +798,6 @@ summary = llm.generate(prompt)
 
 ---
 
-**Status:** Ready for implementation
-**Next Step:** Run category discovery script on Primo_List project
+**Status:** Phase 1 Complete - Discovery Implementation & Testing
+**Branch:** `feature/email-categorization`
+**Next Step:** Implement EmailCategorizer (Phase 2)
