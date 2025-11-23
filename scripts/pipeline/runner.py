@@ -48,6 +48,11 @@ from scripts.retrieval.retrieval_manager import RetrievalManager
 from scripts.prompting.prompt_builder import PromptBuilder
 
 # ─────────────────────────────────────────────
+# ✅ Pipeline Validation
+# ─────────────────────────────────────────────
+from scripts.pipeline.validator import PipelineValidator
+
+# ─────────────────────────────────────────────
 # 🧰 Utilities
 # ─────────────────────────────────────────────
 from scripts.utils.logger import LoggerManager
@@ -168,6 +173,73 @@ class PipelineRunner:
         """Get the currently set LLM model."""
         return self._model_name
 
+    # ─────────────────────────────────────────────
+    # Disk fallback helpers
+    # ─────────────────────────────────────────────
+    def _load_chunks_from_disk(self) -> list[Chunk]:
+        """
+        Load chunks from TSV files on disk.
+
+        Returns:
+            List of Chunk objects loaded from chunks_*.tsv files
+        """
+        chunks = []
+        input_path = self.project.get_input_dir()
+        chunk_files = list(input_path.glob("chunks_*.tsv"))
+
+        if not chunk_files:
+            return []
+
+        for chunk_file in chunk_files:
+            try:
+                with open(chunk_file, 'r', encoding='utf-8') as f:
+                    reader = csv.DictReader(f, delimiter='\t')
+                    for row in reader:
+                        # Parse metadata JSON
+                        meta = json.loads(row.get('meta', '{}'))
+
+                        # Create Chunk object
+                        chunk = Chunk(
+                            id=row.get('chunk_id', ''),
+                            doc_id=row.get('doc_id', ''),
+                            text=row.get('text', ''),
+                            token_count=int(row.get('token_count', 0)),
+                            meta=meta
+                        )
+                        chunks.append(chunk)
+
+                self.logger.debug(
+                    f"Loaded {len(chunks)} chunks from {chunk_file.name}",
+                    extra={"chunk_file": str(chunk_file)}
+                )
+            except Exception as e:
+                self.logger.error(
+                    f"Failed to load chunks from {chunk_file.name}: {e}",
+                    extra={"chunk_file": str(chunk_file), "error": str(e)},
+                    exc_info=True
+                )
+
+        return chunks
+
+    def _count_raw_files(self) -> int:
+        """Count raw files in input/raw/ directory."""
+        raw_dir = self.project.raw_docs_dir()
+        if not raw_dir.exists():
+            return 0
+
+        raw_files = [f for f in raw_dir.rglob("*.*")
+                    if f.is_file() and not f.name.startswith('.')]
+        return len(raw_files)
+
+    def _has_faiss_indices(self) -> bool:
+        """Check if FAISS indices exist."""
+        faiss_dir = self.project.root_dir / "output" / "faiss"
+        if not faiss_dir.exists():
+            return False
+
+        indices = list(faiss_dir.glob("*.faiss"))
+        return len(indices) > 0
+
     def _is_email_project(self) -> bool:
         """
         Detect if this is an email project by checking:
@@ -244,11 +316,46 @@ class PipelineRunner:
         self.steps.append((name, kwargs))
         self.logger.info("step.added", extra={"extra_data": {"name": name, "kwargs": kwargs}})
 
-    def run_steps(self) -> Iterator[str]:
+    def run_steps(self, skip_validation: bool = False) -> Iterator[str]:
         """
         Executes all configured pipeline steps in order.
         Yields human-readable progress messages for UI or CLI.
+
+        Args:
+            skip_validation: If True, skip pre-flight validation (default: False)
         """
+        # Run validation before executing steps (unless skipped)
+        if not skip_validation and self.steps:
+            yield "\n" + "="*80
+            yield "VALIDATING PIPELINE CONFIGURATION"
+            yield "="*80 + "\n"
+
+            validator = PipelineValidator(self.project)
+            report = validator.validate()
+
+            # Print validation report (captured as string)
+            import io
+            import sys
+            old_stdout = sys.stdout
+            sys.stdout = buffer = io.StringIO()
+
+            can_proceed = validator.print_report(report)
+
+            sys.stdout = old_stdout
+            validation_output = buffer.getvalue()
+
+            # Yield validation output line by line
+            for line in validation_output.split('\n'):
+                if line.strip():
+                    yield line
+
+            # Block execution if validation failed
+            if not can_proceed:
+                yield "\n❌ Pipeline validation FAILED - fix errors before proceeding"
+                return
+
+            yield "\n✅ Validation passed - proceeding with pipeline...\n"
+
         self.logger.info("pipeline.start")
         yield "🚀 Starting pipeline execution..."
 
@@ -278,6 +385,12 @@ class PipelineRunner:
 
         self.logger.info("pipeline.end")
         yield "🏁 Pipeline finished."
+
+        # Save current state for future validation (unless skipped)
+        if not skip_validation:
+            validator = PipelineValidator(self.project)
+            validator.save_current_state()
+            yield "✓ Saved pipeline state for future validation"
 
     def clear_steps(self) -> None:
         """
@@ -333,6 +446,69 @@ class PipelineRunner:
         self.raw_docs = new_docs
         yield f"✅ Ingested {len(new_docs)} unique documents from {path.name}"
 
+        # Phase 1 Email Cleaning: Apply quote deduplication and signature detection
+        # This must happen BEFORE chunking to preserve newlines for pattern detection
+        email_docs = [doc for doc in self.raw_docs if doc.metadata.get('doc_type') == 'outlook_eml']
+
+        if email_docs:
+            yield f"🧹 Applying Phase 1 email cleaning to {len(email_docs)} emails..."
+
+            from scripts.email.cleaning import QuoteDeduplicator, SignatureDetector
+
+            quote_dedup = QuoteDeduplicator(
+                min_quote_length=50,
+                similarity_threshold=0.85
+            )
+            sig_detector = SignatureDetector(
+                min_signature_length=10,
+                max_signature_length=500,
+                confidence_threshold=0.55  # Lowered to catch legal disclaimers
+            )
+
+            total_quote_removed = 0
+            total_sig_removed = 0
+            emails_cleaned = 0
+
+            for doc in email_docs:
+                original_length = len(doc.content)
+
+                # Step 1: Remove quoted reply text
+                cleaned_text, quote_stats = quote_dedup.deduplicate(doc.content)
+                total_quote_removed += quote_stats.get('removed_chars', 0)
+
+                # Step 2: Remove email signature
+                cleaned_text, signature = sig_detector.detect_signature(cleaned_text)
+                if signature:
+                    total_sig_removed += len(signature)
+
+                # Update document content with cleaned text
+                if len(cleaned_text) < original_length:
+                    doc.content = cleaned_text
+                    emails_cleaned += 1
+
+                    # Update content hash after cleaning
+                    hash_base = doc.content.strip()
+                    if "image_paths" in doc.metadata:
+                        hash_base += ",".join(doc.metadata["image_paths"])
+                    doc.metadata["content_hash"] = hashlib.sha256(hash_base.encode("utf-8")).hexdigest()
+
+            if emails_cleaned > 0:
+                total_removed = total_quote_removed + total_sig_removed
+                reduction_pct = (total_removed / sum(len(d.content) for d in email_docs)) * 100
+                yield f"✅ Cleaned {emails_cleaned} emails: removed {total_removed:,} chars ({reduction_pct:.1f}% reduction)"
+                self.logger.info(
+                    "email_cleaning.complete",
+                    extra={
+                        "extra_data": {
+                            "emails_cleaned": emails_cleaned,
+                            "quote_chars_removed": total_quote_removed,
+                            "signature_chars_removed": total_sig_removed,
+                            "total_removed": total_removed,
+                            "reduction_percent": reduction_pct
+                        }
+                    }
+                )
+
     def step_chunk(self, **kwargs) -> Iterator[str]:
         """
         Applies chunking rules to all raw documents.
@@ -340,9 +516,28 @@ class PipelineRunner:
         """
         yield "📚 Starting chunking..."
 
+        # Smart fallback: Check disk if no raw_docs in memory
         if not self.raw_docs:
-            yield "❌ No raw documents available. Run 'ingest' first."
-            return
+            raw_file_count = self._count_raw_files()
+
+            if raw_file_count > 0:
+                yield f"⚠️  No raw documents in memory, but found {raw_file_count} raw file(s) on disk"
+                yield "   Running 'ingest' step first..."
+
+                # Run ingest to load raw files
+                yield from self.step_ingest()
+
+                # Check again after ingest
+                if not self.raw_docs:
+                    yield "❌ Ingest completed but no documents were loaded"
+                    yield "   Check that raw files are in supported formats"
+                    return
+            else:
+                yield "❌ No raw documents available."
+                yield "   Options:"
+                yield "   1. Run 'ingest' step first to load raw files"
+                yield f"   2. Add files to {self.project.raw_docs_dir()}/ directory"
+                return
 
         all_chunks: list[Chunk] = []
         error_count = 0
@@ -449,14 +644,35 @@ class PipelineRunner:
                 self.logger.error("embed.fail", extra={"extra_data": {"mode": "memory", "error": str(e)}}, exc_info=True)
             return
 
-        # Case 2: Load from file
+        # Case 2: Load from file (smart fallback)
         base_dir = self.project.input_dir
         enriched_dir = base_dir / "enriched"
         chunk_files = list(base_dir.glob("chunks_*.tsv"))
 
         if not chunk_files:
-            yield "❌ No chunk files found in input/. Run 'chunk' first."
-            return
+            # Check if we have raw files that need chunking
+            raw_file_count = self._count_raw_files()
+
+            if raw_file_count > 0:
+                yield f"⚠️  No chunk files found, but found {raw_file_count} raw file(s) on disk"
+                yield "   Running 'ingest' and 'chunk' steps first..."
+
+                # Run ingest and chunk
+                yield from self.step_ingest()
+                yield from self.step_chunk()
+
+                # Check again for chunk files
+                chunk_files = list(base_dir.glob("chunks_*.tsv"))
+                if not chunk_files:
+                    yield "❌ Chunking completed but no chunk files were created"
+                    return
+                # Continue with embedding using newly created chunk files
+            else:
+                yield "❌ No chunks available for embedding."
+                yield "   Options:"
+                yield "   1. Run 'ingest' and 'chunk' steps first"
+                yield f"   2. Add files to {self.project.raw_docs_dir()}/ directory"
+                return
 
         for chunk_path in chunk_files:
             doc_type = chunk_path.stem.split("_", 1)[-1]
@@ -718,6 +934,44 @@ class PipelineRunner:
             yield "❌ No query provided."
             return
 
+        # Smart fallback: Check if FAISS indices exist
+        if not self._has_faiss_indices():
+            # Check if we have chunks to embed
+            chunk_files = list(self.project.get_input_dir().glob("chunks_*.tsv"))
+
+            if chunk_files:
+                yield f"⚠️  No FAISS indices found, but found {len(chunk_files)} chunk file(s) on disk"
+                yield "   Running 'embed' step first..."
+
+                # Run embed to create indices
+                yield from self.step_embed()
+
+                # Check again
+                if not self._has_faiss_indices():
+                    yield "❌ Embedding completed but no FAISS indices were created"
+                    return
+            else:
+                # No chunks either - need full pipeline
+                raw_file_count = self._count_raw_files()
+
+                if raw_file_count > 0:
+                    yield f"⚠️  No FAISS indices or chunks found, but found {raw_file_count} raw file(s)"
+                    yield "   Running full pipeline (ingest → chunk → embed)..."
+
+                    yield from self.step_ingest()
+                    yield from self.step_chunk()
+                    yield from self.step_embed()
+
+                    if not self._has_faiss_indices():
+                        yield "❌ Pipeline completed but no FAISS indices were created"
+                        return
+                else:
+                    yield "❌ No FAISS indices available for retrieval."
+                    yield "   Options:"
+                    yield "   1. Run 'ingest', 'chunk', and 'embed' steps first"
+                    yield f"   2. Add files to {self.project.raw_docs_dir()}/ directory"
+                    return
+
         # Detect if this is an email project
         is_email = self._is_email_project()
 
@@ -896,7 +1150,7 @@ class PipelineRunner:
         )
 
         try:
-            prompt_builder = PromptBuilder(project=self.project, run_id=self._run_id)
+            prompt_builder = PromptBuilder(project=self.project, run_id=self._run_id, config=self.config)
             prompt = prompt_builder.build_prompt(query, context_chunks=self.retrieved_chunks)
             yield f"📜 Prompt built. Sending to model: {model_to_use}..."
 
