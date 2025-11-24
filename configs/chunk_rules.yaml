@@ -31,11 +31,14 @@ pst:
   overlap: 5
 
 # Outlook emails from local client (via OutlookConnector)
+# Phase 1 Enhancement: Using semantic chunking for topic-aware boundaries
 outlook_eml:
-  strategy: by_email_block
-  min_tokens: 20
-  max_tokens: 300
-  overlap: 5
+  strategy: semantic              # Topic-aware chunking (not fixed-size)
+  min_tokens: 30                  # Minimum chunk size
+  max_tokens: 300                 # Maximum chunk size
+  overlap: 5                      # Token overlap (for backward compatibility)
+  similarity_threshold: 0.65      # Topic boundary detection (lower = more chunks)
+  sentence_overlap: 1             # Sentence overlap for context continuity
 
 # === Word Processing ===
 docx:

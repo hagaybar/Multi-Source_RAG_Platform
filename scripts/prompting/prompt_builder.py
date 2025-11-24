@@ -121,30 +121,63 @@ class PromptBuilder:
     context chunks.
     """
 
-    def __init__(self, template: str | None = None, run_id: Optional[str] = None, project=None):
+    def __init__(self, template: str | None = None, run_id: Optional[str] = None,
+                 project=None, strategy: str | None = None, config: dict | None = None):
         """
         Initializes the PromptBuilder.
 
         Args:
             template (str, optional): A custom prompt template.
-                If None, DEFAULT_PROMPT_TEMPLATE is used.
+                If None, uses template based on strategy.
                 Must contain {context_str} and {query_str} placeholders.
             run_id (str, optional): Run identifier for logging
             project (ProjectManager, optional): Project for project-specific logging
+            strategy (str, optional): Prompt strategy - 'auto', 'email', 'default', 'v2'
+                If None, loads from config or defaults to 'auto'
+            config (dict, optional): Configuration dict to load strategy from
+                If provided, reads llm.prompt_strategy if strategy is None
         """
         self.run_id = run_id
         # Use project-specific logging if project is provided
         if project:
             self.logger = LoggerManager.get_logger(
-                "prompt", 
+                "prompt",
                 task_paths=project.get_task_paths(),
                 run_id=run_id
             )
         else:
             # Fall back to global logging
             self.logger = LoggerManager.get_logger("prompt", run_id=run_id)
-        self.template = template or DEFAULT_PROMPT_TEMPLATE_V2
+
+        # Determine strategy: explicit param > config > default to 'auto'
+        if strategy is None and config is not None:
+            strategy = config.get('llm', {}).get('prompt_strategy', 'auto')
+        self.strategy = strategy or 'auto'
+
+        # Validate strategy
+        valid_strategies = ['auto', 'email', 'default', 'v2']
+        if self.strategy not in valid_strategies:
+            self.logger.warning(
+                f"Invalid prompt_strategy '{self.strategy}', defaulting to 'auto'",
+                extra={"run_id": run_id, "invalid_strategy": self.strategy} if run_id else {"invalid_strategy": self.strategy}
+            )
+            self.strategy = 'auto'
+
+        # Set templates
         self.email_template = EMAIL_PROMPT_TEMPLATE
+
+        # If custom template provided, use it; otherwise select based on strategy
+        if template:
+            self.template = template
+        else:
+            # Map strategy to template
+            if self.strategy == 'default':
+                self.template = DEFAULT_PROMPT_TEMPLATE
+            elif self.strategy == 'email':
+                self.template = EMAIL_PROMPT_TEMPLATE
+            else:  # 'v2' or 'auto'
+                self.template = DEFAULT_PROMPT_TEMPLATE_V2
+
         if ("{context_str}" not in self.template or
                 "{query_str}" not in self.template):
             self.logger.error(
@@ -156,7 +189,11 @@ class PromptBuilder:
                 "Prompt template must include {context_str} and "
                 "{query_str} placeholders."
             )
-        self.logger.debug("PromptBuilder initialized.", extra={"run_id": run_id} if run_id else {})
+
+        self.logger.debug(
+            f"PromptBuilder initialized with strategy '{self.strategy}'",
+            extra={"run_id": run_id, "strategy": self.strategy} if run_id else {"strategy": self.strategy}
+        )
 
     def build_prompt(self, query: str, context_chunks: List[Chunk]) -> str:
         """
@@ -235,19 +272,35 @@ Content:
             extra={"run_id": self.run_id, "query_length": len(query), "context_chunk_count": len(context_chunks)} if self.run_id else {"query_length": len(query), "context_chunk_count": len(context_chunks)}
         )
 
-        # Auto-select template based on content type
-        # Use email template if more than 50% of chunks are emails
-        if context_chunks and email_chunk_count > len(context_chunks) / 2:
+        # Select template based on strategy
+        if self.strategy == 'auto':
+            # Auto-detect: use email template if more than 50% of chunks are emails
+            if context_chunks and email_chunk_count > len(context_chunks) / 2:
+                selected_template = self.email_template
+                self.logger.debug(
+                    f"Auto-selected email template ({email_chunk_count}/{len(context_chunks)} chunks are emails)",
+                    extra={"run_id": self.run_id, "template": "email", "strategy": "auto", "email_chunks": email_chunk_count, "total_chunks": len(context_chunks)} if self.run_id else {"template": "email", "strategy": "auto", "email_chunks": email_chunk_count, "total_chunks": len(context_chunks)}
+                )
+            else:
+                selected_template = self.template
+                self.logger.debug(
+                    f"Auto-selected default template ({email_chunk_count}/{len(context_chunks) if context_chunks else 0} chunks are emails)",
+                    extra={"run_id": self.run_id, "template": "default", "strategy": "auto", "email_chunks": email_chunk_count, "total_chunks": len(context_chunks) if context_chunks else 0} if self.run_id else {"template": "default", "strategy": "auto", "email_chunks": email_chunk_count, "total_chunks": len(context_chunks) if context_chunks else 0}
+                )
+        elif self.strategy == 'email':
+            # Force email template
             selected_template = self.email_template
             self.logger.debug(
-                f"Using email template ({email_chunk_count}/{len(context_chunks)} chunks are emails)",
-                extra={"run_id": self.run_id, "template": "email", "email_chunks": email_chunk_count, "total_chunks": len(context_chunks)} if self.run_id else {"template": "email", "email_chunks": email_chunk_count, "total_chunks": len(context_chunks)}
+                f"Using email template (forced by strategy='{self.strategy}')",
+                extra={"run_id": self.run_id, "template": "email", "strategy": self.strategy, "email_chunks": email_chunk_count, "total_chunks": len(context_chunks) if context_chunks else 0} if self.run_id else {"template": "email", "strategy": self.strategy, "email_chunks": email_chunk_count, "total_chunks": len(context_chunks) if context_chunks else 0}
             )
         else:
+            # Use the template set in __init__ (default, v2, or custom)
             selected_template = self.template
+            template_name = 'default' if self.strategy == 'default' else 'v2' if self.strategy == 'v2' else 'custom'
             self.logger.debug(
-                f"Using default template ({email_chunk_count}/{len(context_chunks) if context_chunks else 0} chunks are emails)",
-                extra={"run_id": self.run_id, "template": "default", "email_chunks": email_chunk_count, "total_chunks": len(context_chunks) if context_chunks else 0} if self.run_id else {"template": "default", "email_chunks": email_chunk_count, "total_chunks": len(context_chunks) if context_chunks else 0}
+                f"Using {template_name} template (strategy='{self.strategy}')",
+                extra={"run_id": self.run_id, "template": template_name, "strategy": self.strategy, "email_chunks": email_chunk_count, "total_chunks": len(context_chunks) if context_chunks else 0} if self.run_id else {"template": template_name, "strategy": self.strategy, "email_chunks": email_chunk_count, "total_chunks": len(context_chunks) if context_chunks else 0}
             )
 
         # Replace placeholders in the template

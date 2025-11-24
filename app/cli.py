@@ -400,7 +400,7 @@ def ask(
                 # Optional: print chunk text preview
 
         # 2. Build prompt
-        prompt_builder = PromptBuilder(project=project, run_id=run_id)  # Use project-specific logging
+        prompt_builder = PromptBuilder(project=project, run_id=run_id, config=project.config)  # Use project-specific logging
         cli_logger.debug("PromptBuilder initialized.", extra={"run_id": run_id})
         prompt_str = prompt_builder.build_prompt(
             query=query, context_chunks=retrieved_chunks

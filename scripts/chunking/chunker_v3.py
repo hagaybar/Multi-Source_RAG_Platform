@@ -17,6 +17,14 @@ from scripts.chunking.rules_v3 import get_rule
 from scripts.utils.email_utils import clean_email_text
 import spacy
 
+# Semantic chunking support
+try:
+    from scripts.chunking.semantic_chunker import SemanticChunker
+    _semantic_chunker = None  # Lazy load
+except ImportError:
+    SemanticChunker = None
+    _semantic_chunker = None
+
 # # Logging setup
 # Ensure you have a logger set up for your application
 from scripts.utils.logger import LoggerManager
@@ -39,6 +47,28 @@ def _get_spacy_model():
                 "Please install it with: python -m spacy download en_core_web_sm"
             ) from e
     return _nlp_model
+
+
+def _get_semantic_chunker(rule: ChunkRule):
+    """Load and cache SemanticChunker with rule parameters."""
+    global _semantic_chunker
+
+    if SemanticChunker is None:
+        raise ImportError(
+            "SemanticChunker not available. "
+            "Ensure sentence-transformers is installed: pip install sentence-transformers"
+        )
+
+    if _semantic_chunker is None:
+        # Initialize with defaults from rule
+        _semantic_chunker = SemanticChunker(
+            similarity_threshold=getattr(rule, 'similarity_threshold', 0.65),
+            min_chunk_size=rule.min_tokens,
+            max_chunk_size=rule.max_tokens,
+            sentence_overlap=getattr(rule, 'sentence_overlap', 1)
+        )
+
+    return _semantic_chunker
 
 # --- regex patterns ----------------------------------------------------------
 PARA_REGEX = re.compile(r"\n\s*\n")  # one or more blank lines
@@ -148,7 +178,21 @@ def split(text: str, meta: dict, clean_options: dict = None, logger=None) -> lis
 
     rule = get_rule(meta["doc_type"])
 
-    if rule.strategy in ("by_paragraph", "paragraph"):
+    if rule.strategy == "semantic":
+        # Use semantic chunking (topic-aware boundaries)
+        semantic_chunker = _get_semantic_chunker(rule)
+        chunk_tuples = semantic_chunker.chunk(cleaned_text, metadata=meta)
+
+        # Convert to Chunk objects directly (bypass merge_chunks_with_overlap)
+        doc_id = meta.get('doc_id', meta.get('source_filepath', 'unknown_doc'))
+        chunks = []
+        for chunk_text, token_count in chunk_tuples:
+            chunks.append(build_chunk(chunk_text, meta, token_count, doc_id))
+
+        logger.debug(f"[SEMANTIC] Created {len(chunks)} chunks using semantic boundaries")
+        return chunks
+
+    elif rule.strategy in ("by_paragraph", "paragraph"):
         items = [p.strip() for p in PARA_REGEX.split(cleaned_text.strip()) if p.strip()]
     elif rule.strategy in ("by_slide", "slide"):
         items = [s.strip() for s in cleaned_text.strip().split("\n---\n") if s.strip()]

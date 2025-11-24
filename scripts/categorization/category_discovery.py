@@ -12,18 +12,55 @@ import sys
 import json
 import random
 import argparse
+import re
 import numpy as np
 from pathlib import Path
 from collections import Counter
 from datetime import datetime
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Set
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
+from sklearn.feature_extraction.text import TfidfVectorizer
+
 from scripts.core.project_manager import ProjectManager
 from scripts.chunking.models import Chunk
 from scripts.api_clients.openai.completer import OpenAICompleter
+
+# Comprehensive stopwords for email categorization
+EMAIL_STOPWORDS = {
+    # Common English stopwords
+    'the', 'and', 'for', 'are', 'but', 'not', 'you', 'all', 'can', 'your',
+    'from', 'that', 'have', 'this', 'will', 'with', 'they', 'what', 'been',
+    'were', 'there', 'their', 'would', 'which', 'when', 'where', 'about',
+    'than', 'into', 'through', 'some', 'these', 'only', 'other', 'such',
+    'them', 'then', 'also', 'does', 'each', 'more', 'most', 'over', 'very',
+
+    # Email-specific words
+    'email', 'sent', 'subject', 'date', 'message', 'list', 'thread', 'reply',
+    'forward', 'via', 'thanks', 'regards', 'best', 'sincerely',
+
+    # Mailing list generic words
+    'primo', 'list', 'mailing', 'listserv', 'group', 'discussion',
+
+    # Time-related (not topics)
+    'today', 'yesterday', 'tomorrow', 'week', 'month', 'year', 'days',
+    'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday',
+    'january', 'february', 'march', 'april', 'june', 'july', 'august',
+    'september', 'october', 'november', 'december',
+}
+
+# Patterns to filter out (regex)
+FILTER_PATTERNS = [
+    r'^\[.*?\]$',  # Mailing list tags: [primo], [alma-l], [igelu]
+    r'^\d{4}$',    # Years: 2024, 2025
+    r'^\d{1,2}[-/]\d{1,2}$',  # Dates: 05-26, 11/22
+    r'^re:?$',     # Reply prefix
+    r'^fwd:?$',    # Forward prefix
+    r'^http',      # URLs
+    r'@',          # Email addresses
+]
 
 
 class CategoryDiscovery:
@@ -36,6 +73,139 @@ class CategoryDiscovery:
         self.category_centroids = {}  # {category_name: centroid_embedding}
         self.category_counts = {}  # {category_name: count}
         self.rules = {}  # {category_name: rules_dict}
+        self.person_names_blocklist = set()  # Person names to exclude from keywords
+
+    def _extract_person_names(self) -> Set[str]:
+        """Extract person names from sender fields to create blocklist.
+
+        This prevents names like 'Stacey', 'Ganor', 'Tamar' from being keywords.
+        """
+        names = set()
+
+        for chunk in self.email_chunks:
+            sender_name = chunk.meta.get("sender_name", "")
+
+            # Common patterns: "FirstName LastName via Primo"
+            # Extract individual words from sender names
+            if sender_name and sender_name != "Unknown":
+                # Remove "via Primo", "via ALMA-L", etc.
+                sender_name = re.sub(r'\s+via\s+.*$', '', sender_name, flags=re.IGNORECASE)
+
+                # Split into words and lowercase
+                words = sender_name.split()
+                for word in words:
+                    # Clean and add to blocklist
+                    clean_word = word.strip('.,;:()[]{}').lower()
+                    if len(clean_word) > 2:  # Avoid initials
+                        names.add(clean_word)
+
+        return names
+
+    def _is_valid_keyword(self, word: str) -> bool:
+        """Check if a word is a valid keyword (not noise).
+
+        Filters out:
+        - Mailing list tags: [primo], [alma-l]
+        - Person names from senders
+        - Stopwords
+        - Years, dates
+        - Email artifacts (re:, fwd:, via)
+        """
+        word = word.lower().strip()
+
+        # Check length
+        if len(word) < 4:
+            return False
+
+        # Check stopwords
+        if word in EMAIL_STOPWORDS:
+            return False
+
+        # Check person names blocklist
+        if word in self.person_names_blocklist:
+            return False
+
+        # Check patterns
+        for pattern in FILTER_PATTERNS:
+            if re.match(pattern, word, re.IGNORECASE):
+                return False
+
+        # Additional checks for common noise
+        # - All digits
+        if word.isdigit():
+            return False
+
+        # - Single characters repeated (e.g., "aaaa")
+        if len(set(word)) == 1:
+            return False
+
+        return True
+
+    def _extract_keywords(self, text: str) -> List[str]:
+        """Extract valid keywords from text.
+
+        Args:
+            text: Subject line or body text
+
+        Returns:
+            List of valid keywords (filtered)
+        """
+        # Split into words
+        words = text.lower().split()
+
+        # Filter and clean
+        keywords = []
+        for word in words:
+            # Remove punctuation from edges
+            clean_word = word.strip('.,;:!?()[]{}"\'`')
+
+            # Check if valid
+            if self._is_valid_keyword(clean_word):
+                keywords.append(clean_word)
+
+        return keywords
+
+    def _is_system_artifact(self, chunk: Chunk) -> bool:
+        """Detect and filter email system artifacts.
+
+        Examples to filter:
+        - Outlook reaction notifications
+        - Auto-replies
+        - Email system messages
+        - Very short emails (likely noise)
+
+        Args:
+            chunk: Email chunk to check
+
+        Returns:
+            True if this is a system artifact, False otherwise
+        """
+        text = chunk.text.lower()
+        subject = chunk.meta.get('subject', '').lower()
+
+        # Reaction notifications
+        if 'reacted to your message' in text:
+            return True
+        if 'outlook-1.cdn.office.net/assets/reaction' in text:
+            return True
+        if '<https://outlook' in text and 'reaction' in text:
+            return True
+
+        # Auto-replies and out-of-office
+        if 'out of office' in subject or 'automatic reply' in subject:
+            return True
+        if 'auto-reply' in subject or 'autoreply' in subject:
+            return True
+
+        # Very short emails (likely system messages or fragments)
+        if len(chunk.text.strip()) < 50:
+            return True
+
+        # Email notification patterns
+        if 'has been added to' in text and len(chunk.text) < 150:
+            return True
+
+        return False
 
     def load_email_chunks(self) -> List[Chunk]:
         """Load all email chunks with embeddings from project."""
@@ -102,9 +272,17 @@ class CategoryDiscovery:
 
             # Filter chunks without embeddings
             chunks_with_emb = [c for c in chunks if hasattr(c, 'embedding') and c.embedding is not None]
-            print(f"✓ Loaded embeddings for {len(chunks_with_emb)} chunks")
 
-            return chunks_with_emb
+            # Filter system artifacts (Task 1.3 - Phase 1)
+            filtered_chunks = [c for c in chunks_with_emb if not self._is_system_artifact(c)]
+
+            removed = len(chunks_with_emb) - len(filtered_chunks)
+            if removed > 0:
+                print(f"✓ Filtered {removed} system artifacts ({removed/len(chunks_with_emb)*100:.1f}%)")
+
+            print(f"✓ Loaded embeddings for {len(filtered_chunks)} chunks")
+
+            return filtered_chunks
 
         except Exception as e:
             print(f"⚠️ Could not load embeddings: {e}")
@@ -166,16 +344,15 @@ class CategoryDiscovery:
         print(f"Cluster {cluster_id}: {len(cluster_emails)} emails")
         print(f"{'='*60}")
 
-        # 1. Most common subject keywords
+        # 1. Most common subject keywords (using improved filtering)
         subject_words = []
         for chunk in cluster_emails:
-            subject = chunk.meta.get("subject", "").lower()
-            # Remove common words
-            words = [w for w in subject.split() if len(w) > 3 and w not in ['from', 'sent', 'subject', 'date', 'primo', 'list']]
-            subject_words.extend(words)
+            subject = chunk.meta.get("subject", "")
+            keywords = self._extract_keywords(subject)
+            subject_words.extend(keywords)
 
         common_subjects = Counter(subject_words).most_common(15)
-        print("\n🔹 Top Subject Keywords:")
+        print("\n🔹 Top Subject Keywords (filtered):")
         for word, count in common_subjects[:10]:
             percentage = (count / len(cluster_emails)) * 100
             print(f"   '{word}': {count} times ({percentage:.1f}%)")
@@ -188,22 +365,22 @@ class CategoryDiscovery:
             date = chunk.meta.get("date", "")[:10]
             print(f"   [{date}] {subject}")
 
-        # 3. Body text patterns
+        # 3. Body text patterns (using improved filtering)
         body_words = []
         for chunk in cluster_emails:
-            text = chunk.text.lower()[:200]  # First 200 chars
-            words = [w for w in text.split() if len(w) > 4]
-            body_words.extend(words)
+            text = chunk.text[:200]  # First 200 chars
+            keywords = self._extract_keywords(text)
+            body_words.extend(keywords)
 
         common_body = Counter(body_words).most_common(10)
-        print("\n🔹 Common Body Keywords:")
+        print("\n🔹 Common Body Keywords (filtered):")
         for word, count in common_body[:5]:
             print(f"   '{word}': {count} times")
 
-        # 4. Sender patterns
+        # 4. Sender patterns (informational only, not used as keywords)
         senders = [c.meta.get("sender_name", "Unknown") for c in cluster_emails]
         sender_counts = Counter(senders).most_common(5)
-        print("\n🔹 Top Senders:")
+        print("\n🔹 Top Senders (informational):")
         for sender, count in sender_counts:
             print(f"   {sender}: {count} emails")
 
@@ -305,13 +482,13 @@ Return ONLY the category name (1-3 words), nothing else."""
         used_names = []  # Track used names to avoid duplicates
 
         for cluster_id in cluster_ids:
-            # Suggest name based on keywords
+            # Suggest name based on keywords (using improved filtering)
             cluster_emails = [c for c in self.email_chunks if c.meta.get("cluster_id") == cluster_id]
             subject_words = []
             for chunk in cluster_emails:
-                subject = chunk.meta.get("subject", "").lower()
-                words = [w for w in subject.split() if len(w) > 3]
-                subject_words.extend(words)
+                subject = chunk.meta.get("subject", "")
+                keywords = self._extract_keywords(subject)
+                subject_words.extend(keywords)
 
             top_words = [w for w, _ in Counter(subject_words).most_common(3)]
 
@@ -368,45 +545,78 @@ Return ONLY the category name (1-3 words), nothing else."""
         return category_mapping
 
     def extract_rules(self) -> Dict[str, Dict]:
-        """Extract categorization rules from discovered patterns."""
+        """Extract categorization rules using TF-IDF for distinctive keywords."""
         print("\n" + "="*60)
-        print("Extracting Categorization Rules")
+        print("Extracting Categorization Rules (TF-IDF)")
         print("="*60)
 
         rules = {}
 
         for cluster_id, category_name in self.category_mapping.items():
-            cluster_emails = [c for c in self.email_chunks if c.meta.get("cluster_id") == cluster_id]
+            cluster_emails = [c for c in self.email_chunks
+                             if c.meta.get("cluster_id") == cluster_id]
 
             if not cluster_emails:
                 continue
 
-            # Extract subject keywords
-            subject_words = []
-            body_words = []
+            # Prepare texts for TF-IDF
+            subject_texts = [c.meta.get("subject", "") for c in cluster_emails]
+            body_texts = [c.text for c in cluster_emails]
 
-            for chunk in cluster_emails:
-                subject = chunk.meta.get("subject", "").lower()
-                body = chunk.text.lower()
+            # TF-IDF for subject keywords (Task 1.2 - Phase 1)
+            subject_keywords = []
+            if subject_texts and len([s for s in subject_texts if s.strip()]) > 1:
+                try:
+                    vectorizer_subj = TfidfVectorizer(
+                        max_features=10,
+                        ngram_range=(1, 2),  # Unigrams + bigrams (e.g., "research assistant")
+                        stop_words=list(EMAIL_STOPWORDS),
+                        min_df=2  # Must appear in at least 2 emails
+                    )
 
-                subject_words.extend([w for w in subject.split() if len(w) > 3])
-                body_words.extend([w for w in body.split() if len(w) > 4])
+                    tfidf_matrix = vectorizer_subj.fit_transform(subject_texts)
+                    feature_names = vectorizer_subj.get_feature_names_out()
 
-            # Find keywords that appear in >30% of emails
-            threshold = len(cluster_emails) * 0.3
+                    # Get average TF-IDF score per feature
+                    scores = tfidf_matrix.mean(axis=0).A1
+                    top_indices = scores.argsort()[-10:][::-1]
+                    subject_keywords = [feature_names[i] for i in top_indices]
+                except Exception as e:
+                    # Fallback to simple filtering if TF-IDF fails
+                    subject_keywords = []
 
-            common_subject = [w for w, count in Counter(subject_words).items() if count > threshold]
-            common_body = [w for w, count in Counter(body_words).items() if count > threshold]
+            # TF-IDF for body keywords
+            body_keywords = []
+            if body_texts and len([b for b in body_texts if b.strip()]) > 1:
+                try:
+                    vectorizer_body = TfidfVectorizer(
+                        max_features=10,
+                        ngram_range=(1, 2),
+                        stop_words=list(EMAIL_STOPWORDS),
+                        min_df=2
+                    )
+
+                    tfidf_matrix = vectorizer_body.fit_transform(body_texts)
+                    feature_names = vectorizer_body.get_feature_names_out()
+
+                    scores = tfidf_matrix.mean(axis=0).A1
+                    top_indices = scores.argsort()[-10:][::-1]
+                    body_keywords = [feature_names[i] for i in top_indices]
+                except Exception as e:
+                    # Fallback to simple filtering if TF-IDF fails
+                    body_keywords = []
 
             rules[category_name] = {
                 "cluster_id": cluster_id,
-                "subject_keywords": common_subject[:10],
-                "body_keywords": common_body[:10],
+                "subject_keywords": subject_keywords,
+                "body_keywords": body_keywords,
                 "confidence": 0.65,
-                "sample_size": len(cluster_emails)
+                "sample_size": len(cluster_emails),
+                "extraction_method": "tfidf"  # Track which method was used
             }
 
-            print(f"✓ {category_name}: {len(common_subject)} subject keywords, {len(common_body)} body keywords")
+            print(f"✓ {category_name}: {len(subject_keywords)} subject, "
+                  f"{len(body_keywords)} body keywords (TF-IDF)")
 
         return rules
 
@@ -490,6 +700,14 @@ Return ONLY the category name (1-3 words), nothing else."""
         if not self.email_chunks:
             print("❌ No emails found")
             return
+
+        # Step 1.5: Extract person names for filtering
+        print("\n" + "="*60)
+        print("Building Keyword Filters")
+        print("="*60)
+        self.person_names_blocklist = self._extract_person_names()
+        print(f"✓ Extracted {len(self.person_names_blocklist)} person names to exclude from keywords")
+        print(f"  Sample names: {', '.join(list(self.person_names_blocklist)[:10])}")
 
         # Step 2: Cluster embeddings
         if any(hasattr(c, 'embedding') for c in self.email_chunks):

@@ -517,6 +517,63 @@ python -m scripts.tools.outlook_helper_check --project Primo_List --json
 
 ---
 
+### Runtime OpenAI Model Selection
+**Priority:** P3 (Low)
+**Effort:** 2-3 hours
+**Status:** Future enhancement
+**Requested:** 2025-11-23
+
+**Purpose:** Allow users to choose OpenAI completion model at runtime for testing and cost optimization
+
+**Features:**
+- **UI Model Selector:** Dropdown in Streamlit UI to select model
+  - GPT-4o (current default)
+  - GPT-4o-mini (faster, cheaper)
+  - GPT-3.5-turbo (cheapest)
+  - Custom model support
+
+- **CLI Flag:** `--model gpt-4o-mini` parameter
+  ```bash
+  python -m scripts.pipeline.runner ask \
+    --project Primo_List \
+    --query "What topics were discussed?" \
+    --model gpt-3.5-turbo
+  ```
+
+- **Session Persistence:** Remember model choice within session
+- **Cost Display:** Show estimated cost per query based on model
+- **Performance Comparison:** Side-by-side comparison mode
+
+**Implementation:**
+```python
+# In OpenAICompleter
+def __init__(self, model: str = None):
+    self.model = model or os.getenv("DEFAULT_LLM_MODEL", "gpt-4o")
+
+# In UI
+model_choice = st.selectbox(
+    "LLM Model",
+    ["gpt-4o", "gpt-4o-mini", "gpt-3.5-turbo"],
+    help="Choose model - affects cost and quality"
+)
+```
+
+**Benefits:**
+- Testing: Compare model performance on same queries
+- Cost optimization: Use cheaper models for simple queries
+- Experimentation: Test new models as they're released
+- Development: Faster iteration with mini models
+
+**Use Cases:**
+- Developer testing different prompts
+- Cost-conscious users for bulk queries
+- Comparing model capabilities
+- Testing before production deployment
+
+**Decision:** Implement when users need multi-model testing workflows
+
+---
+
 ### Corpus Expansion & Image Features
 **Priority:** P3 (Low)
 **Effort:** 4 weeks

@@ -25,7 +25,10 @@ dependencies = [
     "black (>=25.1.0,<26.0.0)",
     "colorlog (>=6.9.0,<7.0.0)",
     "extract-msg (>=0.54.0,<1.0.0)",
-    "pywin32 (>=308,<309); sys_platform == 'win32'"
+    "pywin32 (>=308,<309); sys_platform == 'win32'",
+    "bertopic (>=0.17.3,<0.18.0)",
+    "umap-learn (>=0.5.9.post2,<0.6.0)",
+    "hdbscan (>=0.8.40,<0.9.0)"
     ]
    
 
