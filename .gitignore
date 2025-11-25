@@ -104,6 +104,11 @@ archived/
 # FAISS / index binaries that may appear elsewhere
 *.faiss
 *.index
+# Test results and reports (not committed to repo)
+test_results/
+test_results_*/
+*_test_results/
+test_reports/
 
 # Entire test suite (excluded by request)
 # tests/

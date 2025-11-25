@@ -328,7 +328,7 @@ class EmailIntentDetector:
                         "last_month": 30,
                         "this_week": 7,
                         "this_month": 30,
-                        "recent": 7  # Default to 1 week for "recent"
+                        "recent": 90  # Default to 3 months for "recent/latest"
                     }
 
                     if time_range in days_map:

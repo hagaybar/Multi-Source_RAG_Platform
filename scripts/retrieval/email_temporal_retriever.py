@@ -127,7 +127,7 @@ class TemporalRetriever:
         - "last_month" / "last month" → last 30 days
         - "this_week" / "this week" → current week (Monday to today)
         - "this_month" / "this month" → current month (1st to today)
-        - "recent" → last 7 days (default)
+        - "recent" → last 90 days (default)
 
         Args:
             time_expr: Time expression string
@@ -166,8 +166,8 @@ class TemporalRetriever:
             end = now.strftime("%Y-%m-%d")
 
         else:  # "recent" or unknown
-            # Default to last 7 days
-            start = (now - timedelta(days=7)).strftime("%Y-%m-%d")
+            # Default to last 90 days for "recent/latest"
+            start = (now - timedelta(days=90)).strftime("%Y-%m-%d")
             end = now.strftime("%Y-%m-%d")
 
         return {"start": start, "end": end}

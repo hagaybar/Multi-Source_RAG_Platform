@@ -1,0 +1,24 @@
+# Sample Test Questions for Primo_List_2 Email Dataset
+# Lines starting with # are ignored
+# One question per line
+
+# Temporal queries (testing the fix)
+Review recent discussions about Chicago bibliography
+What happened with Primo VE last month?
+What were the important issues related to the NDE view disscussed on October?
+
+# Factual queries
+How do I configure facets in Primo?
+What is the Research Assistant feature?
+How does NDE display configuration work?
+
+# Topic-based queries
+What are the pressing issues with Primo?
+Issues with loading or performance
+Problems with citation formats
+
+# Specific technical queries
+Are there problems with the Get It dispaly in NDE?
+What is the process for GitHub CSL updates?
+When will Chicago 18th edition be available?
+Which buttons in Primo NDE view has hover effect?
