@@ -1,0 +1,56 @@
+# Reranking Configuration
+# Controls second-stage relevance filtering after FAISS retrieval
+
+reranking:
+  # Enable/disable reranking globally
+  enabled: true
+
+  # Reranker type:
+  # - "llm": Use gpt-4o-mini for scoring (best quality, ~$0.003/query, ~3-8s latency)
+  # - "cross-encoder": Local ML model (free, ~2-5s latency, good quality)
+  # - "cohere": Cohere API (costs money, high quality)
+  type: "llm"
+
+  # LLM reranker settings (recommended)
+  llm:
+    # Model: gpt-4o-mini (best balance of cost/quality)
+    model: "gpt-4o-mini"
+
+    # Batch size: how many chunks to score per API call
+    # Higher = fewer API calls but longer individual calls
+    # Lower = more API calls but better parallelization potential
+    batch_size: 20
+
+  # Cross-encoder model settings
+  cross_encoder:
+    # Model options (faster → slower, lower → higher quality):
+    # - cross-encoder/ms-marco-TinyBERT-L-2-v2 (fastest, lowest quality)
+    # - cross-encoder/ms-marco-MiniLM-L-6-v2 (fast, good quality)
+    # - cross-encoder/ms-marco-MiniLM-L-12-v2 (balanced, recommended)
+    model_name: "cross-encoder/ms-marco-MiniLM-L-12-v2"
+
+  # Cohere reranker settings (only if type: "cohere")
+  cohere:
+    # Requires COHERE_API_KEY environment variable
+    model: "rerank-english-v2.0"
+    # Cost: ~$1-2 per 1K requests
+
+  # Retrieval strategy
+  retrieval:
+    # Number of candidates to retrieve from FAISS (cast wide net)
+    initial_k: 100
+
+    # Number of chunks to return after reranking (precision filter)
+    final_k: 15
+
+    # Optional: Minimum rerank score to include (0-1)
+    # Set to null to disable threshold
+    score_threshold: null  # e.g., 0.3 to filter low-relevance chunks
+
+  # Performance settings
+  performance:
+    # Show progress bar when reranking (useful for debugging)
+    show_progress: false
+
+    # Cache reranker model (set to false to reload each time)
+    cache_model: true

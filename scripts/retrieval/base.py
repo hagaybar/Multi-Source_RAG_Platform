@@ -41,8 +41,8 @@ class FaissRetriever(BaseRetriever):
             print(f"[DEBUG] FAISS indices: {indices.tolist()}")
 
             results = []
-            for score, idx in zip(distances[0], indices[0]):
-                print(f"[DEBUG] Scoring idx={idx}, score={score}")
+            for distance, idx in zip(distances[0], indices[0]):
+                print(f"[DEBUG] Scoring idx={idx}, distance={distance}")
                 if idx < 0 or idx >= len(self.metadata):
                     print(f"[DEBUG] Skipping invalid index {idx}")
                     continue
@@ -50,13 +50,20 @@ class FaissRetriever(BaseRetriever):
                 meta = self.metadata[idx]
                 print(f"[DEBUG] Meta keys: {list(meta.keys())}")
 
+                # Convert L2 distance to similarity score (0-1 range)
+                # For L2 distance: smaller = more similar
+                # Using formula: similarity = 1 / (1 + distance)
+                # This gives: distance=0 → similarity=1.0, distance=∞ → similarity=0
+                similarity = float(1.0 / (1.0 + distance))
+                print(f"[DEBUG] Converted distance={distance:.4f} to similarity={similarity:.4f}")
+
                 results.append(
                     Chunk(
                         id=meta.get("id", f"chunk-{idx}"),
                         doc_id=meta.get("doc_id", "unknown"),
                         text=meta.get("text", "[no text]"),
                         token_count=meta.get("token_count", 0),
-                        meta={**meta, "similarity": float(1.0 - score)},
+                        meta={**meta, "similarity": similarity},
                     )
                 )
 

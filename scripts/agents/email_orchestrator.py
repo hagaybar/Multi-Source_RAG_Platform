@@ -22,6 +22,8 @@ Example:
 
 from typing import List, Dict, Optional
 from datetime import datetime
+from pathlib import Path
+import yaml
 
 from scripts.chunking.models import Chunk
 from scripts.core.project_manager import ProjectManager
@@ -32,6 +34,8 @@ from scripts.retrieval.email_thread_retriever import ThreadRetriever
 from scripts.retrieval.email_temporal_retriever import TemporalRetriever
 from scripts.retrieval.email_sender_retriever import SenderRetriever
 from scripts.retrieval.email_multi_aspect_retriever import MultiAspectRetriever
+from scripts.retrieval.reranker import create_reranker
+from scripts.agents.retrieval_quality_agent import RetrievalQualityAgent
 from scripts.utils.logger import LoggerManager
 
 
@@ -58,6 +62,16 @@ class EmailOrchestratorAgent:
         self.project = project
         self.run_id = run_id
 
+        # Initialize logger first (needed by other components)
+        self.logger = LoggerManager.get_logger(
+            "email_orchestrator",
+            task_paths=project.get_task_paths(),
+            run_id=run_id
+        )
+
+        # Load reranking configuration
+        self.reranking_config = self._load_reranking_config()
+
         # Initialize components
         self.intent_detector = EmailIntentDetector()
         self.strategy_selector = EmailStrategySelector()
@@ -71,12 +85,67 @@ class EmailOrchestratorAgent:
             "multi_aspect": MultiAspectRetriever(project, run_id=run_id),
         }
 
-        # Logger
-        self.logger = LoggerManager.get_logger(
-            "email_orchestrator",
-            task_paths=project.get_task_paths(),
+        # Initialize reranker if enabled
+        self.reranker = None
+        if self.reranking_config.get("enabled", False):
+            try:
+                reranker_type = self.reranking_config.get("type", "cross-encoder")
+
+                # Prepare kwargs based on reranker type
+                if reranker_type == "cross-encoder":
+                    kwargs = {
+                        "model_name": self.reranking_config.get("cross_encoder", {}).get(
+                            "model_name",
+                            "cross-encoder/ms-marco-MiniLM-L-12-v2"
+                        )
+                    }
+                elif reranker_type == "llm":
+                    kwargs = {
+                        "model": self.reranking_config.get("llm", {}).get("model", "gpt-4o-mini"),
+                        "batch_size": self.reranking_config.get("llm", {}).get("batch_size", 20)
+                    }
+                elif reranker_type == "cohere":
+                    kwargs = {
+                        "api_key": self.reranking_config.get("cohere", {}).get("api_key"),
+                        "model": self.reranking_config.get("cohere", {}).get("model", "rerank-english-v2.0")
+                    }
+                else:
+                    raise ValueError(f"Unknown reranker type: {reranker_type}")
+
+                # Create reranker using factory
+                self.reranker = create_reranker(reranker_type, **kwargs)
+                self.logger.info(f"Reranker initialized: type={reranker_type}")
+
+            except Exception as e:
+                self.logger.warning(f"Failed to initialize reranker: {e}. Continuing without reranking.")
+                self.reranker = None
+
+        # Initialize quality assessment agent
+        self.quality_agent = RetrievalQualityAgent(
+            model="gpt-4o-mini",
+            use_llm_assessment=True,
             run_id=run_id
         )
+
+    def _load_reranking_config(self) -> Dict:
+        """
+        Load reranking configuration from YAML file.
+
+        Returns:
+            Dictionary with reranking config, or {"enabled": False} if file not found
+        """
+        config_path = Path(__file__).parent.parent.parent / "configs" / "reranking.yaml"
+
+        if config_path.exists():
+            try:
+                with open(config_path) as f:
+                    config = yaml.safe_load(f)
+                    return config.get("reranking", {"enabled": False})
+            except Exception as e:
+                self.logger.warning(f"Failed to load reranking config: {e}")
+                return {"enabled": False}
+
+        return {"enabled": False}
 
     def retrieve(
         self,
@@ -129,14 +198,27 @@ class EmailOrchestratorAgent:
             extra={"run_id": self.run_id, "chunk_count": len(chunks)} if self.run_id else {}
         )
 
-        # Step 4: Assemble clean context
+        # Step 4: Assess retrieval quality
+        quality_assessment = self.quality_agent.assess(query, chunks, intent)
+        self.logger.info(
+            f"Quality assessment: {quality_assessment['quality']} "
+            f"(confidence: {quality_assessment['confidence']:.2f})",
+            extra={
+                "run_id": self.run_id,
+                "quality": quality_assessment["quality"],
+                "confidence": quality_assessment["confidence"],
+                "recommendation": quality_assessment["recommendation"]
+            } if self.run_id else {}
+        )
+
+        # Step 5: Assemble clean context
         context = self.context_assembler.assemble(chunks, intent, max_tokens=max_tokens)
         self.logger.info(
             f"Assembled context: {len(context)} characters",
             extra={"run_id": self.run_id, "context_length": len(context)} if self.run_id else {}
         )
 
-        # Step 5: Build metadata for transparency
+        # Step 6: Build metadata for transparency
         metadata = self._build_metadata(chunks, strategy)
 
         return {
@@ -144,7 +226,8 @@ class EmailOrchestratorAgent:
             "context": context,
             "intent": intent,
             "strategy": strategy,
-            "metadata": metadata
+            "metadata": metadata,
+            "quality_assessment": quality_assessment
         }
 
     def _get_optimal_top_k(self, intent: str) -> int:
@@ -188,23 +271,33 @@ class EmailOrchestratorAgent:
         top_k: int
     ) -> List[Chunk]:
         """
-        Execute retrieval strategy.
+        Execute retrieval strategy with optional reranking.
 
         Args:
             query: User query
             strategy: Selected strategy from EmailStrategySelector
             intent: Detected intent
-            top_k: Number of chunks to retrieve
+            top_k: Number of chunks to retrieve (final count after reranking)
 
         Returns:
-            List of retrieved chunks
+            List of retrieved chunks (reranked if reranking is enabled)
         """
         primary_strategy = strategy["primary"]
         params = strategy.get("params", {})
 
+        # Determine initial_k for retrieval (wider net if reranking)
+        if self.reranker:
+            initial_k = self.reranking_config.get("retrieval", {}).get("initial_k", 100)
+            self.logger.debug(
+                f"Reranking enabled: retrieving initial_k={initial_k} candidates",
+                extra={"run_id": self.run_id, "initial_k": initial_k} if self.run_id else {}
+            )
+        else:
+            initial_k = top_k
+
         self.logger.debug(
-            f"Executing retrieval: strategy={primary_strategy}, params={params}",
-            extra={"run_id": self.run_id, "strategy": primary_strategy, "params": params} if self.run_id else {}
+            f"Executing retrieval: strategy={primary_strategy}, params={params}, initial_k={initial_k}",
+            extra={"run_id": self.run_id, "strategy": primary_strategy, "params": params, "initial_k": initial_k} if self.run_id else {}
         )
 
         # Get retriever
@@ -228,15 +321,48 @@ class EmailOrchestratorAgent:
 
         elif primary_strategy == "multi_aspect":
             # Multi-aspect uses intent directly
-            chunks = retriever.retrieve(query, intent=intent, top_k=top_k)
+            chunks = retriever.retrieve(query, intent=intent, top_k=initial_k)
 
         elif primary_strategy in ["temporal_retrieval", "sender_retrieval"]:
             # Temporal and sender use intent_metadata
-            chunks = retriever.retrieve(query, intent_metadata=params, top_k=top_k)
+            chunks = retriever.retrieve(query, intent_metadata=params, top_k=initial_k)
 
         else:
             # Fallback: use multi_aspect
-            chunks = self.retrievers["multi_aspect"].retrieve(query, intent=intent, top_k=top_k)
+            chunks = self.retrievers["multi_aspect"].retrieve(query, intent=intent, top_k=initial_k)
+
+        # Apply reranking if enabled and we have enough candidates
+        if self.reranker and len(chunks) > top_k:
+            self.logger.info(
+                f"Applying reranking: {len(chunks)} candidates → top {top_k}",
+                extra={"run_id": self.run_id, "candidates": len(chunks), "final_k": top_k} if self.run_id else {}
+            )
+
+            try:
+                score_threshold = self.reranking_config.get("retrieval", {}).get("score_threshold")
+                chunks = self.reranker.rerank(
+                    query=query,
+                    chunks=chunks,
+                    top_k=top_k,
+                    score_threshold=score_threshold
+                )
+                self.logger.info(
+                    f"Reranking completed: {len(chunks)} chunks returned",
+                    extra={"run_id": self.run_id, "reranked_count": len(chunks)} if self.run_id else {}
+                )
+            except Exception as e:
+                self.logger.error(
+                    f"Reranking failed: {e}. Returning top {top_k} chunks without reranking.",
+                    extra={"run_id": self.run_id, "error": str(e)} if self.run_id else {},
+                    exc_info=True
+                )
+                chunks = chunks[:top_k]
+
+        elif self.reranker and len(chunks) <= top_k:
+            self.logger.info(
+                f"Skipping reranking: only {len(chunks)} chunks (≤ top_k={top_k})",
+                extra={"run_id": self.run_id, "chunk_count": len(chunks)} if self.run_id else {}
+            )
 
         return chunks
 
