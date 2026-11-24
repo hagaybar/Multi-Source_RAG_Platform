@@ -2,11 +2,13 @@
 EmailOrchestratorAgent - Main orchestrator for email retrieval and context assembly.
 
 This orchestrator coordinates the complete email RAG pipeline:
-1. Intent detection (EmailIntentDetector)
-2. Strategy selection (EmailStrategySelector)
-3. Retrieval execution (specialized retrievers)
-4. Context assembly (ContextAssembler)
-5. Metadata extraction and logging
+1. Query intelligence (Phase 6): Analysis, reformulation, domain knowledge
+2. Intent detection (EmailIntentDetector)
+3. Strategy selection (EmailStrategySelector)
+4. Retrieval execution (specialized retrievers)
+5. Reranking and quality assessment (Phase 5)
+6. Context assembly (ContextAssembler)
+7. Metadata extraction and logging
 
 Example:
     orchestrator = EmailOrchestratorAgent(project)
@@ -16,7 +18,9 @@ Example:
     #     "context": "...",
     #     "intent": {...},
     #     "strategy": {...},
-    #     "metadata": {...}
+    #     "metadata": {...},
+    #     "query_analysis": {...},  # Phase 6
+    #     "domain_context": "..."   # Phase 6
     # }
 """
 
@@ -36,6 +40,9 @@ from scripts.retrieval.email_sender_retriever import SenderRetriever
 from scripts.retrieval.email_multi_aspect_retriever import MultiAspectRetriever
 from scripts.retrieval.reranker import create_reranker
 from scripts.agents.retrieval_quality_agent import RetrievalQualityAgent
+from scripts.agents.query_analyzer import QueryAnalyzer
+from scripts.agents.query_reformulator import QueryReformulator
+from scripts.agents.domain_knowledge_injector import DomainKnowledgeInjector
 from scripts.utils.logger import LoggerManager
 
 
@@ -127,6 +134,15 @@ class EmailOrchestratorAgent:
             run_id=run_id
         )
 
+        # Initialize Phase 6: Query Intelligence components
+        self.query_analyzer = QueryAnalyzer(model="gpt-4o-mini")
+        self.query_reformulator = QueryReformulator(
+            model="gpt-4o-mini",
+            analyzer=self.query_analyzer
+        )
+        self.domain_knowledge = DomainKnowledgeInjector()
+        self.logger.info("Phase 6 Query Intelligence components initialized")
+
     def _load_reranking_config(self) -> Dict:
         """
         Load reranking configuration from YAML file.
@@ -167,38 +183,93 @@ class EmailOrchestratorAgent:
                 "context": "...",  # Assembled context string
                 "intent": {...},  # Detected intent
                 "strategy": {...},  # Strategy used
-                "metadata": {...}  # Additional info (chunk_count, senders, etc.)
+                "metadata": {...},  # Additional info (chunk_count, senders, etc.)
+                "query_analysis": {...},  # Phase 6: Query analysis result
+                "domain_context": str,  # Phase 6: Injected domain knowledge
+                "reformulated_queries": [...]  # Phase 6: Sub-queries if reformulated
             }
         """
-        # Step 1: Detect intent
-        intent = self.intent_detector.detect(query)
-        self._log_intent(intent)
+        # Phase 6 Step 1: Analyze query clarity and quality
+        query_analysis = self.query_analyzer.analyze(query)
+        self.logger.info(
+            f"Query analysis: is_specific={query_analysis.is_specific}, "
+            f"quality={query_analysis.intent_quality:.2f}",
+            extra={
+                "run_id": self.run_id,
+                "is_specific": query_analysis.is_specific,
+                "intent_quality": query_analysis.intent_quality,
+                "entities": query_analysis.entities,
+                "issues": query_analysis.issues
+            } if self.run_id else {}
+        )
 
-        # Step 2: Select strategy
-        strategy = self.strategy_selector.select_strategy(intent)
-        self._log_strategy(strategy)
+        # Phase 6 Step 2: Reformulate if vague
+        sub_queries = self.query_reformulator.reformulate(
+            query,
+            context={"current_date": datetime.now().strftime("%Y-%m-%d")}
+        )
 
-        # Step 3: Adjust top_k based on intent if not explicitly provided
-        if top_k is None:
-            top_k = self._get_optimal_top_k(intent["primary_intent"])
+        if len(sub_queries) > 1:
             self.logger.info(
-                f"Auto-adjusted top_k={top_k} for intent={intent['primary_intent']}",
-                extra={"run_id": self.run_id, "intent": intent["primary_intent"], "top_k": top_k} if self.run_id else {}
+                f"Query reformulated into {len(sub_queries)} sub-queries",
+                extra={
+                    "run_id": self.run_id,
+                    "original_query": query,
+                    "sub_queries": sub_queries
+                } if self.run_id else {}
             )
 
+        # Step 3: Multi-query retrieval (if reformulated) or single retrieval
+        all_chunks = []
+        all_intents = []
+        all_strategies = []
+
+        for i, sub_query in enumerate(sub_queries):
+            self.logger.info(
+                f"Processing sub-query {i+1}/{len(sub_queries)}: '{sub_query}'",
+                extra={"run_id": self.run_id, "sub_query": sub_query} if self.run_id else {}
+            )
+
+            # Detect intent for this sub-query
+            intent = self.intent_detector.detect(sub_query)
+            self._log_intent(intent)
+            all_intents.append(intent)
+
+            # Select strategy
+            strategy = self.strategy_selector.select_strategy(intent)
+            self._log_strategy(strategy)
+            all_strategies.append(strategy)
+
+            # Adjust top_k based on intent if not explicitly provided
+            sub_top_k = top_k
+            if top_k is None:
+                sub_top_k = self._get_optimal_top_k(intent["primary_intent"])
+                self.logger.info(
+                    f"Auto-adjusted top_k={sub_top_k} for intent={intent['primary_intent']}",
+                    extra={"run_id": self.run_id, "intent": intent["primary_intent"], "top_k": sub_top_k} if self.run_id else {}
+                )
+
+            # Execute retrieval
+            chunks = self._execute_retrieval(sub_query, strategy, intent, sub_top_k)
+            self.logger.info(
+                f"Sub-query {i+1} retrieved {len(chunks)} chunks",
+                extra={"run_id": self.run_id, "sub_query_index": i+1, "chunk_count": len(chunks)} if self.run_id else {}
+            )
+
+            all_chunks.extend(chunks)
+
+        # Step 4: Deduplicate merged results
+        chunks = self._deduplicate_chunks(all_chunks)
         self.logger.info(
-            f"EmailOrchestrator: Starting retrieval for query='{query}'",
-            extra={"run_id": self.run_id, "query": query, "top_k": top_k} if self.run_id else {}
+            f"After deduplication: {len(chunks)} chunks (from {len(all_chunks)} total)",
+            extra={"run_id": self.run_id, "deduplicated_count": len(chunks), "original_count": len(all_chunks)} if self.run_id else {}
         )
 
-        # Step 3: Execute retrieval
-        chunks = self._execute_retrieval(query, strategy, intent, top_k)
-        self.logger.info(
-            f"Retrieved {len(chunks)} chunks",
-            extra={"run_id": self.run_id, "chunk_count": len(chunks)} if self.run_id else {}
-        )
+        # Use primary intent/strategy (from first sub-query or original)
+        intent = all_intents[0] if all_intents else {"primary_intent": "factual_lookup"}
+        strategy = all_strategies[0] if all_strategies else {"primary": "multi_aspect"}
 
-        # Step 4: Assess retrieval quality
+        # Step 5: Assess retrieval quality
         quality_assessment = self.quality_agent.assess(query, chunks, intent)
         self.logger.info(
             f"Quality assessment: {quality_assessment['quality']} "
@@ -211,14 +282,24 @@ class EmailOrchestratorAgent:
             } if self.run_id else {}
         )
 
-        # Step 5: Assemble clean context
+        # Step 6: Assemble clean context
         context = self.context_assembler.assemble(chunks, intent, max_tokens=max_tokens)
         self.logger.info(
             f"Assembled context: {len(context)} characters",
             extra={"run_id": self.run_id, "context_length": len(context)} if self.run_id else {}
         )
 
-        # Step 6: Build metadata for transparency
+        # Phase 6 Step 3: Inject domain knowledge
+        domain_context = self.domain_knowledge.get_context(
+            entities=query_analysis.entities
+        )
+        if domain_context:
+            self.logger.info(
+                f"Injected domain knowledge: {len(domain_context)} characters",
+                extra={"run_id": self.run_id, "domain_context_length": len(domain_context)} if self.run_id else {}
+            )
+
+        # Step 7: Build metadata for transparency
         metadata = self._build_metadata(chunks, strategy)
 
         return {
@@ -227,7 +308,10 @@ class EmailOrchestratorAgent:
             "intent": intent,
             "strategy": strategy,
             "metadata": metadata,
-            "quality_assessment": quality_assessment
+            "quality_assessment": quality_assessment,
+            "query_analysis": query_analysis,
+            "domain_context": domain_context,
+            "reformulated_queries": sub_queries if len(sub_queries) > 1 else []
         }
 
     def _get_optimal_top_k(self, intent: str) -> int:
@@ -499,3 +583,68 @@ class EmailOrchestratorAgent:
                 "filters": strategy.get('filters', [])
             } if self.run_id else {}
         )
+
+    def _deduplicate_chunks(self, chunks: List[Chunk]) -> List[Chunk]:
+        """
+        Deduplicate chunks based on content_hash and chunk ID.
+
+        When multiple sub-queries retrieve overlapping chunks, we need to
+        deduplicate while preserving the best relevance scores.
+
+        Args:
+            chunks: List of chunks (possibly with duplicates)
+
+        Returns:
+            Deduplicated list of chunks, preserving highest similarity scores
+        """
+        if not chunks:
+            return []
+
+        seen_hashes = {}
+        seen_ids = {}
+        unique_chunks = []
+
+        for chunk in chunks:
+            # Primary deduplication by content_hash (if available)
+            content_hash = chunk.meta.get("content_hash")
+            chunk_id = chunk.id
+
+            # Prefer content_hash for deduplication (more reliable)
+            if content_hash:
+                if content_hash in seen_hashes:
+                    # Keep chunk with better similarity score
+                    existing_chunk = seen_hashes[content_hash]
+                    existing_sim = existing_chunk.meta.get("similarity", float('inf'))
+                    new_sim = chunk.meta.get("similarity", float('inf'))
+
+                    if new_sim < existing_sim:  # Lower L2 distance = better
+                        # Replace with better chunk
+                        seen_hashes[content_hash] = chunk
+                        # Update in unique_chunks list
+                        unique_chunks = [c if c.meta.get("content_hash") != content_hash else chunk for c in unique_chunks]
+                    continue  # Skip adding duplicate
+
+                seen_hashes[content_hash] = chunk
+                unique_chunks.append(chunk)
+
+            # Fallback: deduplicate by chunk ID
+            elif chunk_id:
+                if chunk_id in seen_ids:
+                    # Keep chunk with better similarity score
+                    existing_chunk = seen_ids[chunk_id]
+                    existing_sim = existing_chunk.meta.get("similarity", float('inf'))
+                    new_sim = chunk.meta.get("similarity", float('inf'))
+
+                    if new_sim < existing_sim:
+                        seen_ids[chunk_id] = chunk
+                        unique_chunks = [c if c.id != chunk_id else chunk for c in unique_chunks]
+                    continue
+
+                seen_ids[chunk_id] = chunk
+                unique_chunks.append(chunk)
+
+            else:
+                # No hash or ID - keep as-is
+                unique_chunks.append(chunk)
+
+        return unique_chunks

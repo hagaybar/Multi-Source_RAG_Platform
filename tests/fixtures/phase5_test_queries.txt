@@ -1,0 +1,22 @@
+# Phase 5 Test Queries - Designed to test reranking & quality assessment
+# Testing different query types to exercise Phase 1-5 features
+
+# Temporal Queries (test temporal retriever + reranking)
+What were the main issues discussed last week about Primo?
+Review recent conversations about Chicago citation format
+
+# Factual Queries (test multi-aspect retrieval + quality assessment)
+How do I configure facets in Primo VE?
+What is the process for updating CSL files in GitHub?
+
+# Topic-Based Queries (test reranking effectiveness)
+What are the most critical bugs in Primo NDE view?
+Problems with the Get It button display
+
+# Sender-Specific Queries (test sender retriever)
+What has Sarah mentioned about the Research Assistant feature?
+What technical issues has the development team reported?
+
+# Complex Multi-Intent Queries (test intent detection + reranking)
+When will the Chicago 18th edition be available and what issues does it fix?
+How does the NDE view configuration differ from the old interface and what problems exist?

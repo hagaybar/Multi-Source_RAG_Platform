@@ -1,0 +1,637 @@
+# Manual Evaluation Test Suite for Email Retrieval System
+# Purpose: Systematically test diverse query types to identify gaps and failure modes
+#
+# Test Case Format:
+# - id: Unique identifier
+# - query: The actual query string
+# - category: Type of query (exploratory, specific, vague, etc.)
+# - expected_behavior: What SHOULD happen
+# - success_criteria: Measurable criteria for success
+# - manual_review_points: What human reviewer should check
+# - notes: Any additional context
+
+test_cases:
+  # ========================================
+  # EXPLORATORY QUERIES (5 cases)
+  # ========================================
+
+  - id: EXP-01
+    query: "What are the most pressing issues discussed in the past 90 days?"
+    category: exploratory
+    subcategory: hot_topics
+    expected_behavior: |
+      Should identify the 3-5 discussion threads with the most messages
+      in the past 90 days that are about issues/problems/bugs.
+      Should return FULL context from these threads (all messages).
+    success_criteria:
+      chunk_count: ">= 30"
+      unique_threads: "<= 5"  # Should be focused, not scattered
+      avg_chunks_per_thread: ">= 6"  # Full thread context
+      answer_length: ">= 500 chars"
+      answer_contains: "issue"
+    manual_review_points:
+      - Are the retrieved threads actually the LONGEST threads about issues?
+      - Does the answer summarize multiple distinct issues?
+      - Are the issues actually "pressing" (unresolved, active discussion)?
+      - Did the system miss any obviously important threads?
+    domain_knowledge_needed: false
+    implicit_assumptions:
+      - "Pressing" = high message volume + unresolved status
+      - "Issues" = problems/bugs, not enhancements/questions
+      - Past 90 days = filter by date range
+
+  - id: EXP-02
+    query: "What topics are generating the most discussion recently?"
+    category: exploratory
+    subcategory: active_discussions
+    expected_behavior: |
+      Should identify threads with recent activity (last 7-30 days)
+      with high message counts. Should return diverse topics (not all
+      about the same subject).
+    success_criteria:
+      chunk_count: ">= 20"
+      unique_threads: ">= 3"
+      date_range_max_age: "<= 30 days"
+      answer_contains: ["discussion", "topic"]
+    manual_review_points:
+      - Are threads actually recent (< 30 days)?
+      - Is there topic diversity (not all about same thing)?
+      - Does message volume align with "generating discussion"?
+    domain_knowledge_needed: false
+
+  - id: EXP-03
+    query: "What are people struggling with in Primo VE?"
+    category: exploratory
+    subcategory: problem_discovery
+    expected_behavior: |
+      Should identify threads where people express problems/difficulties.
+      Should look for keywords like "not working", "broken", "how do I", "help".
+      Should return threads about PROBLEMS, not features/enhancements.
+    success_criteria:
+      chunk_count: ">= 15"
+      answer_contains: ["problem", "issue", "struggle"]
+      thread_topics: "problems/bugs"  # Not enhancements
+    manual_review_points:
+      - Are retrieved threads about PROBLEMS (not feature requests)?
+      - Do threads show people asking for help/reporting issues?
+      - Does answer identify specific pain points?
+    domain_knowledge_needed: false
+    implicit_assumptions:
+      - "Struggling with" = problems/bugs/configuration difficulties
+
+  - id: EXP-04
+    query: "What changes to Primo have generated the most feedback?"
+    category: exploratory
+    subcategory: reaction_tracking
+    expected_behavior: |
+      Should identify threads about Primo changes (updates, releases, features)
+      that have many responses. High reply count indicates strong reactions.
+    success_criteria:
+      chunk_count: ">= 20"
+      unique_threads: ">= 2"
+      thread_topics: "updates/changes"
+    manual_review_points:
+      - Are threads about changes/updates (not static features)?
+      - Do threads show community reaction (many participants)?
+      - Does answer explain what changes and what reactions?
+    domain_knowledge_needed: false
+
+  - id: EXP-05
+    query: "What are the top 3 unresolved issues affecting users?"
+    category: exploratory
+    subcategory: unresolved_tracking
+    expected_behavior: |
+      Should identify threads about issues that are still active/unresolved.
+      Should NOT include threads with "resolved", "fixed", "closed".
+      Should prioritize by message count + recency.
+    success_criteria:
+      chunk_count: ">= 20"
+      unique_threads: "3"  # Specifically asked for top 3
+      answer_contains: ["unresolved", "issue", "affecting"]
+    manual_review_points:
+      - Are threads actually unresolved (no resolution messages)?
+      - Are they affecting multiple users (not just one person)?
+      - Does answer clearly list 3 distinct issues?
+    domain_knowledge_needed: false
+    implicit_assumptions:
+      - "Unresolved" = no "fixed"/"resolved" messages in thread
+      - "Top 3" = ranked by discussion volume
+
+  # ========================================
+  # SPECIFIC QUERIES (5 cases)
+  # ========================================
+
+  - id: SPEC-01
+    query: "How do I configure facets in Primo VE?"
+    category: specific
+    subcategory: how_to
+    expected_behavior: |
+      Should retrieve emails with instructions/guidance on facet configuration.
+      Should return 5-10 most relevant chunks about facet configuration.
+    success_criteria:
+      chunk_count: "5-15"
+      answer_contains: ["facet", "configure"]
+      answer_length: ">= 200 chars"
+    manual_review_points:
+      - Do chunks contain actionable facet configuration info?
+      - Is answer accurate and helpful?
+      - Are retrieved chunks the most relevant ones?
+    domain_knowledge_needed: true
+    expected_entities: ["Facets", "Primo VE", "Back Office"]
+
+  - id: SPEC-02
+    query: "What is the process for updating CSL files in GitHub?"
+    category: specific
+    subcategory: workflow
+    expected_behavior: |
+      Should retrieve emails describing the CSL update workflow.
+      Should return step-by-step process information.
+    success_criteria:
+      chunk_count: "5-15"
+      answer_contains: ["CSL", "GitHub", "update"]
+      answer_has_steps: true
+    manual_review_points:
+      - Does answer provide a clear workflow/process?
+      - Are the steps accurate and complete?
+      - Is GitHub repository mentioned?
+    domain_knowledge_needed: true
+    expected_entities: ["CSL", "GitHub", "Chicago Citation"]
+
+  - id: SPEC-03
+    query: "What did Jeff Peterson say about the citation style repository?"
+    category: specific
+    subcategory: sender_specific
+    expected_behavior: |
+      Should filter for sender="Jeff Peterson", then search for content
+      about citation style repository. Should use sender_query intent.
+    success_criteria:
+      chunk_count: "3-10"
+      all_chunks_from_sender: "Jeff Peterson"
+      answer_contains: ["citation", "repository"]
+    manual_review_points:
+      - Are ALL chunks from Jeff Peterson?
+      - Do chunks discuss citation style repository?
+      - Did system correctly detect sender_query intent?
+    domain_knowledge_needed: true
+    expected_entities: ["CSL"]
+
+  - id: SPEC-04
+    query: "Problems with the Get It button display in November"
+    category: specific
+    subcategory: temporal_issue
+    expected_behavior: |
+      Should filter for November date range, search for Get It button issues.
+      Should use temporal_query or factual_lookup with temporal filter.
+    success_criteria:
+      chunk_count: "5-15"
+      all_chunks_from_timeframe: "November 2025"
+      answer_contains: ["Get It", "button"]
+    manual_review_points:
+      - Are all chunks from November 2025?
+      - Do chunks discuss Get It button problems?
+      - Is temporal filtering working correctly?
+    domain_knowledge_needed: true
+    expected_entities: ["Get It Button"]
+
+  - id: SPEC-05
+    query: "Explain the relationship between Alma and Primo VE fulfillment"
+    category: specific
+    subcategory: conceptual
+    expected_behavior: |
+      Should retrieve emails explaining how Alma and Primo VE work together
+      for fulfillment. Should use factual_lookup intent.
+    success_criteria:
+      chunk_count: "5-15"
+      answer_contains: ["Alma", "Primo", "fulfillment"]
+      answer_explains_relationship: true
+    manual_review_points:
+      - Does answer accurately explain the integration?
+      - Are retrieved chunks relevant to the relationship?
+      - Is enough context provided for understanding?
+    domain_knowledge_needed: true
+    expected_entities: ["Alma", "Primo VE", "Fulfillment"]
+
+  # ========================================
+  # VAGUE QUERIES (3 cases)
+  # ========================================
+
+  - id: VAGUE-01
+    query: "What's happening with Primo?"
+    category: vague
+    expected_behavior: |
+      Phase 6 should detect vagueness and reformulate into specific sub-queries.
+      Should generate 2-4 sub-queries covering different aspects.
+    success_criteria:
+      reformulated: true
+      sub_query_count: "2-4"
+      chunk_count: ">= 15"
+    manual_review_points:
+      - Was query reformulated into specific sub-queries?
+      - Are sub-queries more specific than original?
+      - Does answer provide comprehensive overview?
+    domain_knowledge_needed: true
+
+  - id: VAGUE-02
+    query: "Tell me about recent NDE stuff"
+    category: vague
+    expected_behavior: |
+      Should reformulate into specific questions about NDE.
+      Should apply temporal filter (recent = 30-90 days).
+    success_criteria:
+      reformulated: true
+      answer_contains: "NDE"
+      chunk_count: ">= 10"
+    manual_review_points:
+      - Did reformulation improve query specificity?
+      - Are results actually recent?
+      - Does answer cover NDE topics comprehensively?
+    domain_knowledge_needed: true
+
+  - id: VAGUE-03
+    query: "Primo issues?"
+    category: vague
+    expected_behavior: |
+      Extremely vague - should reformulate into multiple specific questions
+      about different types of Primo issues.
+    success_criteria:
+      reformulated: true
+      sub_query_count: "3-4"
+      answer_contains: "issue"
+    manual_review_points:
+      - How well did reformulation handle extreme vagueness?
+      - Are sub-queries diverse (different issue types)?
+      - Is answer useful despite vague input?
+    domain_knowledge_needed: true
+
+  # ========================================
+  # IMPLICIT KNOWLEDGE QUERIES (5 cases)
+  # ========================================
+
+  - id: IMPL-01
+    query: "What's the latest on the EU01 performance problem?"
+    category: specific
+    subcategory: implicit_knowledge_required
+    expected_behavior: |
+      Requires understanding:
+      - EU01 = European production server
+      - Performance problem = a specific known issue
+      Should retrieve thread about EU01 performance issues.
+    success_criteria:
+      chunk_count: ">= 5"
+      answer_contains: ["EU01", "performance"]
+    manual_review_points:
+      - Did system find the right thread about EU01?
+      - Does answer explain the performance issue?
+      - Is implicit knowledge about EU01 needed?
+    domain_knowledge_needed: true
+    missing_entities: ["EU01", "Server Instances"]
+    gap_type: "implicit_knowledge"
+
+  - id: IMPL-02
+    query: "Has the CSL repo been updated for Chicago 18?"
+    category: specific
+    subcategory: implicit_knowledge_required
+    expected_behavior: |
+      Requires understanding:
+      - CSL repo = Citation Style Language GitHub repository
+      - Chicago 18 = Chicago Manual of Style 18th edition
+      Should retrieve discussion about Chicago 18th edition CSL updates.
+    success_criteria:
+      chunk_count: ">= 5"
+      answer_contains: ["Chicago", "18", "CSL"]
+    manual_review_points:
+      - Did system connect "CSL repo" to the citation discussion?
+      - Does answer address the update status?
+      - Is implicit knowledge properly bridged?
+    domain_knowledge_needed: true
+    existing_entities: ["CSL", "Chicago Citation"]  # Already in knowledge base
+    gap_type: "partial_implicit_knowledge"
+
+  - id: IMPL-03
+    query: "What's the status of the GetIt integration?"
+    category: specific
+    subcategory: implicit_knowledge_required
+    expected_behavior: |
+      Requires understanding:
+      - GetIt = Get It button / fulfillment system
+      - Integration = Alma-Primo integration
+      Should retrieve thread about Get It button issues/status.
+    success_criteria:
+      chunk_count: ">= 5"
+      answer_contains: ["Get It", "integration"]
+    manual_review_points:
+      - Did system recognize "GetIt" (no space) = "Get It"?
+      - Are chunks about Get It button/fulfillment?
+      - Is alias handling working?
+    domain_knowledge_needed: true
+    existing_entities: ["Get It Button"]
+    gap_type: "alias_variation"
+
+  - id: IMPL-04
+    query: "Updates about the migration timeline"
+    category: vague
+    subcategory: implicit_knowledge_required
+    expected_behavior: |
+      Requires understanding:
+      - Migration = likely NDE migration (context-dependent)
+      - Timeline = schedule/dates
+      Should ask for clarification OR assume NDE migration.
+    success_criteria:
+      reformulated_or_clarified: true
+      chunk_count: ">= 5"
+    manual_review_points:
+      - Did system identify ambiguity (which migration)?
+      - Did it make reasonable assumption (NDE migration)?
+      - Are retrieved chunks about migration timeline?
+    domain_knowledge_needed: true
+    gap_type: "missing_context"
+
+  - id: IMPL-05
+    query: "What did people say about the November release?"
+    category: specific
+    subcategory: temporal_implicit
+    expected_behavior: |
+      Requires understanding:
+      - November release = Primo VE November 2025 release
+      - Should filter for November 2025 timeframe
+      - Should find discussion/reactions to the release
+    success_criteria:
+      chunk_count: ">= 10"
+      temporal_filter_applied: true
+      answer_contains: ["November", "release"]
+    manual_review_points:
+      - Are chunks from around November 2025 release timeframe?
+      - Do chunks discuss the release and reactions?
+      - Did temporal filtering work correctly?
+    domain_knowledge_needed: false
+
+  # ========================================
+  # THREAD-BASED QUERIES (3 cases)
+  # ========================================
+
+  - id: THREAD-01
+    query: "Summarize the discussion about Chicago citation format"
+    category: specific
+    subcategory: thread_summary
+    expected_behavior: |
+      Should identify the Chicago citation thread (likely the longest one)
+      and return ALL or most chunks from that thread to provide full
+      discussion context.
+    success_criteria:
+      chunk_count: ">= 10"
+      unique_threads: "<= 2"  # Should focus on main thread
+      answer_length: ">= 500 chars"
+    manual_review_points:
+      - Did system identify the main Chicago citation thread?
+      - Are chunks from the same thread (coherent discussion)?
+      - Does summary capture the full discussion arc?
+      - Were important parts of the thread missed?
+    domain_knowledge_needed: true
+    expected_intent: "thread_summary"
+
+  - id: THREAD-02
+    query: "What was discussed in the thread about NDE performance issues?"
+    category: specific
+    subcategory: thread_summary
+    expected_behavior: |
+      Should use thread_retrieval strategy, find threads about NDE performance,
+      return full thread context.
+    success_criteria:
+      chunk_count: ">= 8"
+      unique_threads: "<= 2"
+      answer_contains: ["NDE", "performance"]
+    manual_review_points:
+      - Correct thread identified?
+      - Full thread context provided?
+      - Summary accurate?
+    domain_knowledge_needed: true
+    expected_intent: "thread_summary"
+
+  - id: THREAD-03
+    query: "Show me all messages in the Research Assistant discussion"
+    category: specific
+    subcategory: thread_retrieval_explicit
+    expected_behavior: |
+      User explicitly wants ALL messages from a specific thread.
+      Should recognize this and return complete thread.
+    success_criteria:
+      chunk_count: ">= 5"
+      unique_threads: "1"  # Should be ONE thread only
+      completeness: "all_messages"
+    manual_review_points:
+      - Is this the complete thread (all messages)?
+      - Are messages in chronological order?
+      - Did system recognize "all messages" request?
+    domain_knowledge_needed: false
+    expected_intent: "thread_summary"
+
+  # ========================================
+  # EDGE CASES (4 cases)
+  # ========================================
+
+  - id: EDGE-01
+    query: "What did Sarah say about the Research Assistant?"
+    category: specific
+    subcategory: non_existent_sender
+    expected_behavior: |
+      Should detect sender_query intent, search for "Sarah".
+      Should return 0 results (Sarah doesn't exist in dataset).
+      Answer should gracefully handle no results.
+    success_criteria:
+      chunk_count: "0"
+      answer_contains: ["no", "not found", "no information"]
+    manual_review_points:
+      - Correct intent detection (sender_query)?
+      - Graceful handling of no results?
+      - Does answer suggest alternatives?
+    domain_knowledge_needed: false
+    expected_intent: "sender_query"
+
+  - id: EDGE-02
+    query: "Issues from yesterday"
+    category: specific
+    subcategory: no_data_in_range
+    expected_behavior: |
+      Should detect temporal_query, filter for yesterday.
+      Should return 0 results (no emails from yesterday).
+      Should explain no data in that range.
+    success_criteria:
+      chunk_count: "0"
+      temporal_filter_applied: true
+    manual_review_points:
+      - Was temporal filter correctly applied?
+      - Does answer explain data gap?
+      - Could system suggest broader timeframe?
+    domain_knowledge_needed: false
+
+  - id: EDGE-03
+    query: "asdfqwer zxcv"
+    category: nonsense
+    subcategory: gibberish
+    expected_behavior: |
+      Should handle gracefully - either ask for clarification
+      or return no results without crashing.
+    success_criteria:
+      no_crash: true
+      chunk_count: ">= 0"
+    manual_review_points:
+      - System didn't crash?
+      - Graceful error handling?
+      - Useful error message?
+    domain_knowledge_needed: false
+
+  - id: EDGE-04
+    query: "Tell me everything"
+    category: vague
+    subcategory: extremely_broad
+    expected_behavior: |
+      Should detect extreme vagueness, either:
+      1. Ask for clarification, OR
+      2. Reformulate into reasonable sub-queries
+      Should NOT just return random chunks.
+    success_criteria:
+      clarification_requested_or_reformulated: true
+    manual_review_points:
+      - How did system handle extreme broadness?
+      - Was response reasonable?
+      - Did it ask for clarification?
+    domain_knowledge_needed: false
+
+  # ========================================
+  # TEMPORAL QUERIES (3 cases)
+  # ========================================
+
+  - id: TEMP-01
+    query: "What issues were reported in the past month?"
+    category: specific
+    subcategory: temporal_issues
+    expected_behavior: |
+      Should filter for past month (30 days), search for issue keywords.
+      Should return issues reported in that timeframe.
+    success_criteria:
+      chunk_count: ">= 10"
+      date_range_max_age: "<= 30 days"
+      answer_contains: "issue"
+    manual_review_points:
+      - All chunks from past 30 days?
+      - Chunks about issues (not announcements)?
+      - Temporal filtering working?
+    domain_knowledge_needed: false
+    expected_intent: "temporal_query"
+
+  - id: TEMP-02
+    query: "Recent discussions about performance"
+    category: specific
+    subcategory: temporal_topic
+    expected_behavior: |
+      Should combine temporal filter (recent = 30-90 days) with
+      topic search (performance). Should return recent performance discussions.
+    success_criteria:
+      chunk_count: ">= 5"
+      date_range_max_age: "<= 90 days"
+      answer_contains: "performance"
+    manual_review_points:
+      - Are chunks recent (< 90 days)?
+      - Are they about performance?
+      - Good balance of recency + relevance?
+    domain_knowledge_needed: false
+
+  - id: TEMP-03
+    query: "Compare Primo VE updates from October vs November"
+    category: specific
+    subcategory: temporal_comparison
+    expected_behavior: |
+      Should retrieve updates from BOTH October and November,
+      should enable comparison in answer.
+    success_criteria:
+      chunk_count: ">= 10"
+      chunks_from_both_months: true
+      answer_contains: ["October", "November", "compare"]
+    manual_review_points:
+      - Chunks from both time periods?
+      - Answer compares the two months?
+      - Comparison is meaningful?
+    domain_knowledge_needed: false
+
+  # ========================================
+  # AGGREGATION QUERIES (3 cases)
+  # ========================================
+
+  - id: AGG-01
+    query: "What are all the known bugs in the NDE view?"
+    category: specific
+    subcategory: aggregation_bugs
+    expected_behavior: |
+      Should retrieve all chunks mentioning NDE bugs/issues.
+      Should aggregate multiple different bugs in the answer.
+    success_criteria:
+      chunk_count: ">= 15"
+      answer_lists_multiple_bugs: true
+      answer_contains: ["NDE", "bug", "issue"]
+    manual_review_points:
+      - Does answer list multiple distinct bugs?
+      - Are the bugs actually about NDE?
+      - Did system miss any major NDE bugs?
+    domain_knowledge_needed: true
+    expected_intent: "aggregation_query"
+
+  - id: AGG-02
+    query: "List all the different opinions about the Research Assistant feature"
+    category: specific
+    subcategory: aggregation_opinions
+    expected_behavior: |
+      Should retrieve diverse chunks representing different viewpoints.
+      Should aggregate multiple perspectives in answer.
+    success_criteria:
+      chunk_count: ">= 10"
+      sender_diversity: ">= 5"  # Multiple different people
+      answer_shows_diversity: true
+    manual_review_points:
+      - Are multiple viewpoints represented?
+      - Does answer capture opinion diversity?
+      - Are chunks from different senders?
+    domain_knowledge_needed: false
+
+  - id: AGG-03
+    query: "What are the main categories of questions people ask about Primo?"
+    category: exploratory
+    subcategory: meta_aggregation
+    expected_behavior: |
+      Should analyze the corpus itself to identify question patterns.
+      This is a META query about the data, not about Primo content.
+    success_criteria:
+      chunk_count: ">= 20"
+      answer_identifies_categories: true
+    manual_review_points:
+      - Does answer identify question categories?
+      - Are categories derived from actual data?
+      - Is this even possible with current system?
+    domain_knowledge_needed: false
+    gap_type: "meta_analysis_not_supported"
+
+# ========================================
+# Test Suite Metadata
+# ========================================
+
+test_suite_metadata:
+  version: "1.0"
+  created: "2025-11-25"
+  total_cases: 22
+  categories:
+    exploratory: 5
+    specific: 5
+    vague: 3
+    implicit_knowledge: 5
+    thread_based: 3
+    edge_cases: 4
+    temporal: 3
+    aggregation: 3
+
+  evaluation_dimensions:
+    - retrieval_accuracy: "Are the right chunks retrieved?"
+    - intent_detection: "Is intent correctly identified?"
+    - thread_handling: "Are discussion threads properly handled?"
+    - temporal_filtering: "Is date filtering working?"
+    - domain_knowledge: "Is implicit knowledge bridged?"
+    - answer_quality: "Is the answer accurate and complete?"
+    - failure_mode: "If failed, why?"
